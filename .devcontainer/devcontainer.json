@@ -1,0 +1,27 @@
+{
+  "name": "Ansible + Kubernetes + OpenTofu",
+  "build":{
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },  
+  "containerEnv": {
+    "PYTHON_PACKAGES": "",                                              // comma-separated
+    "ANSIBLE_COLLECTIONS": ""                                           // comma-separated
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "opentofu.vscode-opentofu",
+        "redhat.vscode-yaml",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "redhat.ansible"
+      ]
+    }
+  },
+  "postCreateCommand": "/usr/local/bin/post_create.sh | tee /tmp/post_create.log",
+  "remoteUser": "root",
+  "features": {},
+  "forwardPorts": [],
+  "mounts": [],
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}"
+}
