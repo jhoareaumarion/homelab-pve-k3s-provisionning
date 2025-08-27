@@ -5,8 +5,8 @@
     "context": "."
   },  
   "containerEnv": {
-    "PYTHON_PACKAGES": "",                                              // comma-separated
-    "ANSIBLE_COLLECTIONS": ""                                           // comma-separated
+    "PYTHON_PACKAGES": "pynetbox",                                              // comma-separated
+    "ANSIBLE_COLLECTIONS": "netbox.netbox",                             // comma-separated
   },
   "customizations": {
     "vscode": {
