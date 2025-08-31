@@ -1,0 +1,81 @@
+# This file is maintained automatically by "tofu init".
+# Manual edits may be lost in future updates.
+
+provider "registry.opentofu.org/e-breuninger/netbox" {
+  version     = "4.2.0"
+  constraints = "4.2.0"
+  hashes = [
+    "h1:pK9XihZqQyDhE0QxiUdf268MWf2cmoML1K4x0CcgeDo=",
+    "zh:0dea86b801cef5b2e9af01fcf79b56e5659465b25bee77498b85145a0381b0b8",
+    "zh:1121a65d40f2e7ab7a69e44c426d0fbfa39c1c213426296c101a0f6fca8d301c",
+    "zh:16a6ce8191f3f151dc16f96e3823c2f8e48f200a936149ebc45f4042f438b649",
+    "zh:36b0f00b4d21cd487742ff3707932baf000ee2fe4522283e4973ff229cb52d66",
+    "zh:8316b1afd7be82b873aa262368f933ea8832e25649197820ded82797492fd947",
+    "zh:8ac6c22af69c46c084e5de90b5167e48c34048d005ecf409c977539896c8030d",
+    "zh:cb04cbb1eaebbb5c93a0dd4c467a2659fd16c1dc2723caabe89a71a795ffa80b",
+    "zh:d058f4b46c5a0c32d23407476eee216b880bc9aa8033b59bccd858661a43528f",
+  ]
+}
+
+provider "registry.opentofu.org/hashicorp/http" {
+  version     = "3.4.5"
+  constraints = "3.4.5"
+  hashes = [
+    "h1:IkHNZ09hqg1TtLrUqUHIqoKXbNJE69dk917niblQf3U=",
+    "zh:055a4431d33bb89b9848193152433eaead7cc2e6746d3436a5922419de2112bf",
+    "zh:0bfabafea9f5e36802fcfc5a800831ec1767d896af889abc610014d02b09bdc2",
+    "zh:300b4983fe1b43bd0a7dac1f94b30b3814f11c824224dd83fb45a521c02cea60",
+    "zh:68f6958314ca5dc0868be70e37ec123b99b8828aa49f27fd2fdd13df05d31ab1",
+    "zh:c29f098a597250adc2a7d9f99acbce3c9e07d37f1c5cfded5df4309738cf613c",
+    "zh:c33607397f9c9302c0cd797c8b7484c9c6cfa09c3489d4b55af17df20b204368",
+    "zh:d519ca364a224110428b390ee06e963a3ec4dfdd1ac816c9f32e647567957cf5",
+    "zh:e4a9c7c0ac31a0192362ef43449390cdf00d2cf6f13061ef730b177eaf00ac45",
+    "zh:f25223c062f274d8f89bb96017e73586030a205bc91cdad266a9954d0def2a23",
+    "zh:fd4dc824ebae2f3a66318df364bec83b88e9a52e7f66b00dafa29a796d9a94ab",
+  ]
+}
+
+provider "registry.opentofu.org/maxlaverse/bitwarden" {
+  version     = "0.16.0"
+  constraints = "0.16.0"
+  hashes = [
+    "h1:myDU3D1qdmcupXF/WfexYhZ0zqghZqgSVlBd8qlgj10=",
+    "zh:49b383ae6edda2b6e0f321b6e7be8866ed26e31bfca6c7dbdf93f97600e25a9d",
+    "zh:5e78bae93e270eefedae0109bb049a70e971adc0f7a46fee06249f50419ea4c6",
+    "zh:65b492c19462222145ae9b06ae55dadf90247611045223e2ccfe621ca985eb07",
+    "zh:682b22c9b4008753b81a043db3774064557535a205204617c1c84e98a17b293d",
+    "zh:7684bb0b5e99edcf287e204ad9ea40484c9886111dc02506176c34e5b4ab7e38",
+    "zh:7c0d61fd1b9d27034c1ced73beddfa315baf0fa9c7c276ead20a78b1968e4063",
+    "zh:84a295364ab0e43df5b5b5cdef68bf9ad2fad890f6b3a6de3242cb242acf5d12",
+    "zh:aa1f7ff46e2c09b7b3f26fc1d52fbca0e839efedcca32fb24ee0fc17d3d20f68",
+    "zh:b137589f376dac262cf55d1451d9dc5e94e8e25e5046e4a27c574a369d9f275e",
+    "zh:b21214a883e2838f5e6377f0cad79d676c7839e9ee7a71a9d7f311e481822a09",
+    "zh:d690a0bc9781a05698aaff5056197963fd5c1f7b71c0c53539e5ff3073cdb8d9",
+    "zh:d780053bff8d65fa3b177c02122bba30b716970d6c8b6312b7fb5988d512fee2",
+    "zh:e034b2e7f6fba2489d02a57e763b83fd24a772358b6e7f63a4b5b0a43f0d4c30",
+    "zh:efd27fe06e643dfcfd2721312dbe8b1b6132e0aa6379f3e62d3e56d54c090aa8",
+    "zh:f809ab383cca0a5f83072981c64208cbd7fa67e986a86ee02dd2c82333221e32",
+  ]
+}
+
+provider "registry.opentofu.org/telmate/proxmox" {
+  version     = "3.0.2-rc04"
+  constraints = "3.0.2-rc04"
+  hashes = [
+    "h1:8tyqYSoNfrqIh0ICT7abFOQVcyGGXry2qFCJVMoc4TE=",
+    "zh:00586a3e02061734f5ff4c309696ec1bbd6e00a7ed1281c44626f02929417f6e",
+    "zh:05af12aababd0a67a95309a803123f3c238b16ecdb73dc59c8d9c3d4a0b691c5",
+    "zh:4b6457bd0138f5c66c8b7043bdbffe3b8abcce2383293d77f653dbd77d14428f",
+    "zh:7b1b6e76d6b03c7829b8dadeb30de236782be314f5146d9f29ee12bd01961d7a",
+    "zh:87c21e0a8244b73c62ad3221773ec1c72fb918e0025b0664183a8ad8bebeb5bc",
+    "zh:954997c550285dfc167977683b97b045dd62923c251fad32c4ca81b564c2005f",
+    "zh:98781ef0199877580256e9f9a7f0666107f76af23f54f67d6392a66a6f5001b5",
+    "zh:9fc4dbd1752e2b9125223be2dd25597c0e6d534aa784c4829af3c3e3e58eb973",
+    "zh:a3f672019aee2d45c202668b95c48113e3c50001b740bd48956738ad1418c6b7",
+    "zh:a539852a4034132442e6dc6f644444994d83b0dc7a4d30bbe6464de420cfdf2d",
+    "zh:aade0b50a559a1da683c49ec8527e5e66b12ed42d4b1f10e69b25cbbf6c67805",
+    "zh:bdb7c2b78cfe039247948fa75fad49f871f8a8bb9b969aec4c45a24edc80ab0f",
+    "zh:c16209a6748f87a379a5a3132ca4f471a4807bd478664499593e09433ba39b7b",
+    "zh:cb015fb4a0a50d151c35c6a3505cdf7a337edd0b65eba82a43c8142c523adfb8",
+  ]
+}
