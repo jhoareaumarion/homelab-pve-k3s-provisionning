@@ -5,70 +5,57 @@
   vars_files:
     - secrets.yml
   tasks:      
-    # - name: Updating Netbox
-    #   block:
-    #   - name: Create virtual machine within NetBox with only required information
-    #     netbox.netbox.netbox_virtual_machine:
-    #       netbox_url: "{{ netbox_uri }}"
-    #       netbox_token: "{{ netbox_token }}"
-    #       data:
-    #         name: "{{ inventory_hostname }}"
-    #         virtual_machine_role: "{{ proxmox_tags.split(';')[0] }}"
-    #         description: "Managed by Ansible."
-    #         site: HOME
-    #         cluster: HOME-DESK-R04-MER01-PRX01
-    #         device: HOME-DESK-R04-MER01
-    #         vcpus: "{{ proxmox_cores }}"
-    #         memory: "{{ proxmox_memory }}"
-    #         custom_fields:
-    #           proxmox_id: "{{ proxmox_vmid }}"
-    #           host_type: "Virtual Machine"
-    #       state: present
-    #     register: vm
+    - name: Updating Netbox
+      block:
+      
+      - name: Create VM
+        ansible.builtin.include_role:
+          name: manage-netbox
+          tasks_from: create-vm
 
-    #   - name: Create disks
-    #     ansible.builtin.include_role:
-    #       name: manage-netbox
-    #       tasks_from: create-disks
+      - name: Create disks
+        ansible.builtin.include_role:
+          name: manage-netbox
+          tasks_from: create-disks
 
-    #   - name: Create interfaces
-    #     ansible.builtin.include_role:
-    #       name: manage-netbox
-    #       tasks_from: create-interfaces
-    #     loop:
-    #       - name: net0
-    #         mac: "{{ proxmox_net0.virtio }}"
-    #         vlan: "Management"
-    #         prefix: 10.10.10.0/24
-    #       - name: net1
-    #         mac: "{{ proxmox_net1.virtio }}"
-    #         vlan: "Service"
-    #         prefix: 10.10.50.0/24
-    #       - name: net2
-    #         mac: "{{ proxmox_net2.virtio }}"
-    #         vlan: "Landing"
-    #         prefix: 10.10.90.0/24   
-    #   delegate_to: localhost
+      - name: Create interfaces
+        ansible.builtin.include_role:
+          name: manage-netbox
+          tasks_from: create-interfaces
+        loop:
+          - name: net0
+            mac: "{{ proxmox_net0.virtio }}"
+            vlan: "Management"
+            prefix: 10.10.10.0/24
+          - name: net1
+            mac: "{{ proxmox_net1.virtio }}"
+            vlan: "Service"
+            prefix: 10.10.50.0/24
+          - name: net2
+            mac: "{{ proxmox_net2.virtio }}"
+            vlan: "Landing"
+            prefix: 10.10.90.0/24   
+      delegate_to: localhost
 
-    # - name: Refresh dynamic inventory
-    #   meta: refresh_inventory 
+    - name: Refresh dynamic inventory
+      meta: refresh_inventory 
 
-    # - name: Updating OPNSense
-    #   block:
-    #   - name: Patch Kea DCHPv4 reservations
-    #     ansible.builtin.include_role:
-    #       name: manage-opnsense
-    #       tasks_from: kea-patch-reservation
-    #     vars:
-    #       reservations:
-    #         - hw_address: "{{ interface.mac_address | lower }}"
-    #           ip_address: "{{ interface.ip_addresses[0].address.split('/')[0] }}"
-    #           subnet: "{{ interface.ip_addresses[0].address | network_address(append_subnet=True) }}"
-    #           hostname: "{{ inventory_hostname }}"
-    #     loop: "{{ interfaces | selectattr('name', 'match', '.*net[01]$') | list }}"   
-    #     loop_control:
-    #       loop_var: interface                                 # Find the interface ending in net0 or net1 only 
-    #   delegate_to: localhost
+    - name: Updating OPNSense
+      block:
+      - name: Patch Kea DCHPv4 reservations
+        ansible.builtin.include_role:
+          name: manage-opnsense
+          tasks_from: kea-patch-reservation
+        vars:
+          reservations:
+            - hw_address: "{{ interface.mac_address | lower }}"
+              ip_address: "{{ interface.ip_addresses[0].address.split('/')[0] }}"
+              subnet: "{{ interface.ip_addresses[0].address | network_address(append_subnet=True) }}"
+              hostname: "{{ inventory_hostname }}"
+        loop: "{{ interfaces | selectattr('name', 'match', '.*net[01]$') | list }}"   
+        loop_control:
+          loop_var: interface                                 # Find the interface ending in net0 or net1 only 
+      delegate_to: localhost
     - name: Write private key to /root/.ssh/control-node.key
       ansible.builtin.copy:
         dest: /tmp/control-node.key
