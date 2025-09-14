@@ -4,18 +4,11 @@ terraform {
       source  = "bpg/proxmox"
       version = "0.83.0"
     }
-
-    netbox = {
-      source  = "e-breuninger/netbox"
-      version = "4.2.0"
-    }
     
     http = {
       source = "hashicorp/http"
       version = "3.4.5"
-    }
-
-    
+    }    
   }
 }
 
@@ -49,21 +42,14 @@ data "http" "get_host" {
   }
 }
 
-output "master_nodes" {
-  value = local.k3s_master_nodes_number
-}
-output "worker_nodes" {
-  value = local.k3s_worker_nodes_number
-}
-
 resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
   count = local.k3s_master_nodes_number
-  name = "HOME-DESK-R04-MER01-10-MKUB-${format("%02d", count.index)}"
+  name = "home-desk-r04-mer01-10-mkub-${format("%02d", count.index+1)}"
   description = "Managed by OpenTofu"  
   tags = ["k3s-master-node","opentofu"]
 
   node_name = "mercury"
-  vm_id = 10000 + count.index
+  vm_id = 10100 + count.index+1
 
   cpu {
     cores      = 2
@@ -89,8 +75,95 @@ resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
   initialization {
     datastore_id = "local-zfs"
     interface = "ide2"
-    user_data_file_id = proxmox_virtual_environment_file.master_user_data_cloud_config.id
+    user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
     meta_data_file_id = proxmox_virtual_environment_file.master_meta_data_cloud_config[count.index].id
+  }
+  bios        = "ovmf"  
+
+  serial_device {
+  }
+
+  vga {
+    type = "serial0"
+  }
+  efi_disk {
+    type = "4m"
+    datastore_id = "local-zfs"
+  }
+
+  keyboard_layout = "fr"
+      
+  network_device {
+    model  = "virtio"
+    bridge = "vmbr0"
+    vlan_id = 10
+  }
+  
+  network_device {
+    model  = "virtio"
+    bridge = "vmbr0"
+    vlan_id = 50
+  }
+
+  network_device {
+    model  = "virtio"
+    bridge = "vmbr0"
+    vlan_id = 90
+  }
+
+  operating_system {
+    type = "l26"
+  }
+  on_boot = true
+  scsi_hardware     = "virtio-scsi-single"
+  started = true
+  agent {
+    enabled = true
+    type    = "virtio" 
+  }
+  boot_order = ["virtio0"]
+  stop_on_destroy = true
+
+  lifecycle {
+    ignore_changes = [ 
+    ]
+  }
+}
+resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
+  count = local.k3s_worker_nodes_number
+  name = "home-desk-r04-mer01-10-wkub-${format("%02d", count.index+1)}"
+  description = "Managed by OpenTofu"  
+  tags = ["k3s-worker-node","opentofu"]
+
+  node_name = "mercury"
+  vm_id = 10200 + count.index+1
+
+  cpu {
+    cores      = 2
+    sockets    = 1
+    type       = "x86-64-v2-AES"
+  }
+  
+  memory     {
+    dedicated = 2048
+    floating = 2048
+  }
+
+  disk {
+    datastore_id  = "local-zfs"
+    import_from = proxmox_virtual_environment_download_file.cloud_image.id
+    interface = "scsi0"
+    iothread = true
+    backup = true
+    discard = "on"
+    size     = 3
+  }
+
+  initialization {
+    datastore_id = "local-zfs"
+    interface = "ide2"
+    user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
+    meta_data_file_id = proxmox_virtual_environment_file.worker_meta_data_cloud_config[count.index].id
   }
   bios        = "ovmf"  
 
@@ -164,14 +237,30 @@ resource "proxmox_virtual_environment_file" "master_meta_data_cloud_config" {
   source_raw {
     data = <<-EOF
     #cloud-config
-    local-hostname: HOME-DESK-R04-MER01-10-MKUB-${format("%02d", count.index)}
+    local-hostname: home-desk-r04-mer01-10-mkub-${format("%02d", count.index)}
     EOF
 
     file_name = "meta-data-cloud-config-master-${format("%02d", count.index)}.yaml"
   }
 }
 
-resource "proxmox_virtual_environment_file" "master_user_data_cloud_config" {
+resource "proxmox_virtual_environment_file" "worker_meta_data_cloud_config" {
+  count = local.k3s_worker_nodes_number
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "mercury"
+
+  source_raw {
+    data = <<-EOF
+    #cloud-config
+    local-hostname: home-desk-r04-mer01-10-wkub-${format("%02d", count.index)}
+    EOF
+
+    file_name = "meta-data-cloud-config-worker-${format("%02d", count.index)}.yaml"
+  }
+}
+
+resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
   content_type = "snippets"
   datastore_id = "local"
   node_name    = "mercury"
@@ -223,83 +312,3 @@ resource "proxmox_virtual_environment_file" "master_user_data_cloud_config" {
     file_name = "user-data-cloud-config.yaml"
   }
 }
-
-# 
-# resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
-#   count = local.k3s_worker_nodes_number
-#   name = "HOME-DESK-R04-MER01-10-WKUB-${format("%02d", count.index)}"
-#   target_node  = "mercury"  
-#   vmid = 10100 + count.index
-
-#   clone       = "debian-cloudinit-k3s" # The name of the template
-#   full_clone  = false
-#   agent = 1
-
-#   os_type     = "cloud-init"  
-#   bios        = "ovmf"
-#   boot="order=scsi0"
-
-#   cpu {
-#     cores      = 1
-#     sockets    = 1
-#     type       = "x86-64-v2-AES"
-#   }
-
-#   serial {
-#     id = 0
-#   }
-
-#   efidisk {
-#     efitype = "4m"
-#     storage = "local-zfs"
-#   }
-
-#   disks {
-#     scsi {
-#       scsi0 {
-#         disk{
-#           size     = "32G"
-#           storage  = "local-zfs"
-#         }
-#       }
-#     }
-#     ide {
-#       ide2 {
-#         cloudinit{
-#           storage= "local-zfs"
-#         }
-#       }
-#     }
-#   }
-  
-#   network {
-#     id = 0
-#     model  = "virtio"
-#     bridge = "vmbr0"
-#     tag = 10
-#   }
-  
-#   network {
-#     id = 1
-#     model  = "virtio"
-#     bridge = "vmbr0"
-#     tag = 50
-#   }
-  
-#   network {
-#     id = 2
-#     model  = "virtio"
-#     bridge = "vmbr0"
-#     tag = 90
-#   }
-  
-#   memory     = 2048
-#   scsihw     = "virtio-scsi-single"
-#   bootdisk   = "scsi0"
-#   hotplug    = "disk,network,usb"
-
-#   ciuser = module.secrets_module.logins["ci"].username
-#   cipassword = "prout" #module.secrets_module.logins["ci"].password
-#   ciupgrade = true
-#   sshkeys = module.secrets_module.ssh_keys["control-node"].public_key
-# }
