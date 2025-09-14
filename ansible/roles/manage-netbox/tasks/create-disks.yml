@@ -1,0 +1,20 @@
+---
+- name: Create and attach EFI Disk    
+  netbox.netbox.netbox_virtual_disk:
+    netbox_url: "{{ netbox_uri }}"
+    netbox_token: "{{ netbox_token }}"
+    data:
+      virtual_machine: "{{ vm.virtual_machine.name }}"
+      name: "{{ proxmox_efidisk0.split('local-zfs:')[1].split(',')[0] }}"
+      size: "{{ (proxmox_efidisk0.split('size=')[1].split('M')[0] | int) }}"
+    state: present
+
+- name: Create and attach the SCSI disk    
+  netbox.netbox.netbox_virtual_disk:
+    netbox_url: "{{ netbox_uri }}"
+    netbox_token: "{{ netbox_token }}"
+    data:
+      virtual_machine: "{{ vm.virtual_machine.name }}"
+      name: "{{ proxmox_scsi0.disk_image.split('local-zfs:')[1] }}"
+      size: "{{ (proxmox_scsi0.size.split('G')[0] | int) * 1000 }}"
+    state: present
