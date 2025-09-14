@@ -1,0 +1,117 @@
+---
+- name: Include secrets
+  ansible.builtin.include_vars: secrets.yml
+  
+- name: Setting endpoints
+  set_fact:
+    found_reservations: []
+    opnsense_endpoints:
+      get_kea_reservations: "/api/kea/dhcpv4/search_reservation"
+      get_kea_subnets: "/api/kea/dhcpv4/search_subnet"
+      post_kea_reservation: "/api/kea/dhcpv4/add_reservation"
+      reconfigure_kea: "/api/kea/service/reconfigure"
+      set_kea: "/api/kea/dhcpv4/set"
+
+- name: GET current reservations
+  uri:
+    url: "{{ opnsense_uri }}{{ opnsense_endpoints.get_kea_reservations }}"
+    url_username: "{{ opnsense_key }}"
+    url_password: "{{ opnsense_token }}"
+    force_basic_auth: yes
+    method: GET
+    return_content: yes
+  register: current_reservations
+
+- name: GET current subnets
+  uri:
+    url: "{{ opnsense_uri }}{{ opnsense_endpoints.get_kea_subnets }}"
+    url_username: "{{ opnsense_key }}"
+    url_password: "{{ opnsense_token }}"
+    force_basic_auth: yes
+    method: GET
+    return_content: yes
+  register: current_subnets
+
+- name: Parse JSON response for subnets
+  set_fact:
+    subnets: "{{ current_subnets.json.rows }}"
+
+- name: Update reservations with subnet IDs
+  set_fact:
+    reservations_with_subnet_id: >-
+      {{
+        reservations | map('combine', {
+          'subnet_id': (
+            subnets | selectattr('subnet', 'equalto', item.subnet) | map(attribute='uuid') | first
+          )
+        })
+      }}
+  loop: "{{ reservations }}"
+  loop_control:
+    loop_var: item
+    
+- name: Loop through reservations and find matches
+  set_fact:
+    found_reservations: >-
+      {{
+        found_reservations + [
+          current_reservations.json.rows | selectattr('hostname', 'equalto', reservation.hostname) |
+          list + current_reservations.json.rows | selectattr('hw_address', 'equalto', reservation.hw_address) |
+          list + current_reservations.json.rows | selectattr('ip_address', 'equalto', reservation.ip_address) |
+          list
+        ] | flatten
+      }}
+  loop: "{{ reservations }}"
+  loop_control:
+    loop_var: "reservation"
+
+- name: POST reservation to OPNSense Kea
+  uri:
+    url: "{{ opnsense_uri }}{{ opnsense_endpoints.post_kea_reservation }}"
+    url_username: "{{ opnsense_key }}"
+    url_password: "{{ opnsense_token }}"
+    force_basic_auth: yes
+    method: POST 
+    headers:
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      reservation:
+        description: ""
+        hostname: "{{ reservation.hostname }}"
+        hw_address: "{{ reservation.hw_address }}"
+        subnet: "{{ reservation.subnet_id }}"
+        ip_address: "{{ reservation.ip_address }}"
+    return_content: yes
+  loop: >-
+    {{
+      reservations_with_subnet_id |
+      rejectattr('hw_address', 'in', found_reservations | map(attribute='hw_address')) |
+      rejectattr('ip_address', 'in', found_reservations | map(attribute='ip_address'))
+    }}
+  loop_control:
+    loop_var: "reservation"
+
+- name: Set changes to OPNSense Kea
+  uri:
+    url: "{{ opnsense_uri }}{{ opnsense_endpoints.set_kea }}"
+    url_username: "{{ opnsense_key }}"
+    url_password: "{{ opnsense_token }}"
+    force_basic_auth: yes
+    method: POST 
+    headers: 
+      Content-Type: "application/json"
+    body_format: json
+    return_content: yes
+
+- name: Reconfigure OPNSense Kea
+  uri:
+    url: "{{ opnsense_uri }}{{ opnsense_endpoints.reconfigure_kea }}"
+    url_username: "{{ opnsense_key }}"
+    url_password: "{{ opnsense_token }}"
+    force_basic_auth: yes
+    method: POST 
+    headers: 
+      Content-Type: "application/json"
+    body_format: json
+    return_content: yes

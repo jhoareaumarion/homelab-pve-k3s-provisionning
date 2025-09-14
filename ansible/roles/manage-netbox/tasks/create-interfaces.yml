@@ -1,4 +1,7 @@
 ---
+- name: Include secrets
+  ansible.builtin.include_vars: secrets.yml
+  
 - name: Create Interface
   netbox.netbox.netbox_vm_interface:
     netbox_url: "{{ netbox_uri }}"

@@ -2,10 +2,8 @@
 - name: Deploy-k3s
   hosts: k3s_master_node,k3s_worker_node
   gather_facts: false
-  vars_files:
-    - secrets.yml
   tasks:      
-    - name: Updating Netbox with new VMs
+    - name: Updating Netbox
       block:
       - name: Create virtual machine within NetBox with only required information
         netbox.netbox.netbox_virtual_machine:
@@ -48,4 +46,24 @@
             mac: "{{ proxmox_net2.virtio }}"
             vlan: "Landing"
             prefix: 10.10.90.0/24   
+      delegate_to: localhost
+
+    - name: Refresh dynamic inventory
+      meta: refresh_inventory 
+
+    - name: Updating OPNSense
+      block:
+      - name: Patch Kea DCHPv4 reservations
+        ansible.builtin.include_role:
+          name: manage-opnsense
+          tasks_from: kea-patch-reservation
+        vars:
+          reservations:
+            - hw_address: "{{ interface.mac_address | lower }}"
+              ip_address: "{{ interface.ip_addresses[0].address.split('/')[0] }}"
+              subnet: "{{ interface.ip_addresses[0].address | network_address(append_subnet=True) }}"
+              hostname: "{{ inventory_hostname }}"
+        loop: "{{ interfaces | selectattr('name', 'match', '.*net[01]$') | list }}"   
+        loop_control:
+          loop_var: interface                                 # Find the interface ending in net0 or net1 only 
       delegate_to: localhost

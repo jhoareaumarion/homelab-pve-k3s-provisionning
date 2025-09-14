@@ -1,4 +1,7 @@
 ---
+- name: Include secrets
+  ansible.builtin.include_vars: secrets.yml
+  
 - name: Create and attach EFI Disk    
   netbox.netbox.netbox_virtual_disk:
     netbox_url: "{{ netbox_uri }}"
