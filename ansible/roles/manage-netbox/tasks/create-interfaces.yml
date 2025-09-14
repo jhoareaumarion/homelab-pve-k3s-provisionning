@@ -1,0 +1,55 @@
+---
+- name: Create Interface
+  netbox.netbox.netbox_vm_interface:
+    netbox_url: "{{ netbox_uri }}"
+    netbox_token: "{{ netbox_token }}"
+    data:
+      name: "{{ inventory_hostname }}:{{ item.name }}"
+      virtual_machine: "{{ inventory_hostname }}"
+      mode: Tagged
+      tagged_vlans:
+        - name: "{{ item.vlan }}"
+          site: HOME
+      custom_fields:
+        interface_bridge: 33
+    state: present 
+
+- name: Create MAC addresses within NetBox with only required information
+  netbox.netbox.netbox_mac_address:
+    netbox_url: "{{ netbox_uri }}"
+    netbox_token: "{{ netbox_token }}"
+    data:
+      mac_address: "{{ item.mac }}"
+      assigned_object:
+        virtual_machine: "{{ vm.virtual_machine.name }}"
+        name: "{{ vm.virtual_machine.name }}:{{ item.name }}"
+    state: present  
+
+- name: Assign MAC to interface
+  netbox.netbox.netbox_vm_interface:
+    netbox_url: "{{ netbox_uri }}"
+    netbox_token: "{{ netbox_token }}"
+    data:
+      name: "{{ inventory_hostname }}:{{ item.name }}"
+      virtual_machine: "{{ inventory_hostname }}"
+      mac_address: "{{ item.mac }}"
+      primary_mac_address: "{{ item.mac }}"
+      mode: Tagged
+      tagged_vlans:
+        - name: "{{ item.vlan }}"
+          site: HOME
+      custom_fields:
+        interface_bridge: 33
+    state: present 
+
+
+- name: Assign IP address to interface 
+  netbox.netbox.netbox_ip_address:
+    netbox_url: "{{ netbox_uri }}"
+    netbox_token: "{{ netbox_token }}"
+    data:
+      prefix: "{{ item.prefix }}"
+      assigned_object: 
+        name: "{{ inventory_hostname }}:{{ item.name }}"
+        virtual_machine: "{{ inventory_hostname }}"
+    state: present
