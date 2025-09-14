@@ -2,68 +2,116 @@
 - name: Deploy-k3s
   hosts: k3s_master_node,k3s_worker_node
   gather_facts: false
+  vars_files:
+    - secrets.yml
   tasks:      
-    - name: Updating Netbox
-      block:
-      - name: Create virtual machine within NetBox with only required information
-        netbox.netbox.netbox_virtual_machine:
-          netbox_url: "{{ netbox_uri }}"
-          netbox_token: "{{ netbox_token }}"
-          data:
-            name: "{{ inventory_hostname }}"
-            virtual_machine_role: "{{ proxmox_tags.split(';')[0] }}"
-            description: "Managed by Ansible."
-            site: HOME
-            cluster: HOME-DESK-R04-MER01-PRX01
-            device: HOME-DESK-R04-MER01
-            vcpus: "{{ proxmox_cores }}"
-            memory: "{{ proxmox_memory }}"
-            custom_fields:
-              proxmox_id: "{{ proxmox_vmid }}"
-              host_type: "Virtual Machine"
-          state: present
-        register: vm
+    # - name: Updating Netbox
+    #   block:
+    #   - name: Create virtual machine within NetBox with only required information
+    #     netbox.netbox.netbox_virtual_machine:
+    #       netbox_url: "{{ netbox_uri }}"
+    #       netbox_token: "{{ netbox_token }}"
+    #       data:
+    #         name: "{{ inventory_hostname }}"
+    #         virtual_machine_role: "{{ proxmox_tags.split(';')[0] }}"
+    #         description: "Managed by Ansible."
+    #         site: HOME
+    #         cluster: HOME-DESK-R04-MER01-PRX01
+    #         device: HOME-DESK-R04-MER01
+    #         vcpus: "{{ proxmox_cores }}"
+    #         memory: "{{ proxmox_memory }}"
+    #         custom_fields:
+    #           proxmox_id: "{{ proxmox_vmid }}"
+    #           host_type: "Virtual Machine"
+    #       state: present
+    #     register: vm
 
-      - name: Create disks
-        ansible.builtin.include_role:
-          name: manage-netbox
-          tasks_from: create-disks
+    #   - name: Create disks
+    #     ansible.builtin.include_role:
+    #       name: manage-netbox
+    #       tasks_from: create-disks
 
-      - name: Create interfaces
-        ansible.builtin.include_role:
-          name: manage-netbox
-          tasks_from: create-interfaces
-        loop:
-          - name: net0
-            mac: "{{ proxmox_net0.virtio }}"
-            vlan: "Management"
-            prefix: 10.10.10.0/24
-          - name: net1
-            mac: "{{ proxmox_net1.virtio }}"
-            vlan: "Service"
-            prefix: 10.10.50.0/24
-          - name: net2
-            mac: "{{ proxmox_net2.virtio }}"
-            vlan: "Landing"
-            prefix: 10.10.90.0/24   
+    #   - name: Create interfaces
+    #     ansible.builtin.include_role:
+    #       name: manage-netbox
+    #       tasks_from: create-interfaces
+    #     loop:
+    #       - name: net0
+    #         mac: "{{ proxmox_net0.virtio }}"
+    #         vlan: "Management"
+    #         prefix: 10.10.10.0/24
+    #       - name: net1
+    #         mac: "{{ proxmox_net1.virtio }}"
+    #         vlan: "Service"
+    #         prefix: 10.10.50.0/24
+    #       - name: net2
+    #         mac: "{{ proxmox_net2.virtio }}"
+    #         vlan: "Landing"
+    #         prefix: 10.10.90.0/24   
+    #   delegate_to: localhost
+
+    # - name: Refresh dynamic inventory
+    #   meta: refresh_inventory 
+
+    # - name: Updating OPNSense
+    #   block:
+    #   - name: Patch Kea DCHPv4 reservations
+    #     ansible.builtin.include_role:
+    #       name: manage-opnsense
+    #       tasks_from: kea-patch-reservation
+    #     vars:
+    #       reservations:
+    #         - hw_address: "{{ interface.mac_address | lower }}"
+    #           ip_address: "{{ interface.ip_addresses[0].address.split('/')[0] }}"
+    #           subnet: "{{ interface.ip_addresses[0].address | network_address(append_subnet=True) }}"
+    #           hostname: "{{ inventory_hostname }}"
+    #     loop: "{{ interfaces | selectattr('name', 'match', '.*net[01]$') | list }}"   
+    #     loop_control:
+    #       loop_var: interface                                 # Find the interface ending in net0 or net1 only 
+    #   delegate_to: localhost
+    - name: Write private key to /root/.ssh/control-node.key
+      ansible.builtin.copy:
+        dest: /tmp/control-node.key
+        content: "{{ control_node_key }}"
+        mode: '0600'
       delegate_to: localhost
 
-    - name: Refresh dynamic inventory
-      meta: refresh_inventory 
+    - name: Configuring {{ inventory_hostname }} to be connected from Landing VLAN
+      ansible.builtin.set_fact:
+        ansible_host: >-
+          {{
+            proxmox_agent_interfaces
+            | selectattr('name', 'equalto', 'ens20')
+            | map(attribute='ip-addresses')
+            | first
+            | select('match', '^10\.')
+            | first
+            | split('/')
+            | first
+          }}
+        ansible_user: "{{ control_node_username }}"
+        ansible_ssh_private_key_file: /tmp/control-node.key
 
-    - name: Updating OPNSense
-      block:
-      - name: Patch Kea DCHPv4 reservations
-        ansible.builtin.include_role:
-          name: manage-opnsense
-          tasks_from: kea-patch-reservation
-        vars:
-          reservations:
-            - hw_address: "{{ interface.mac_address | lower }}"
-              ip_address: "{{ interface.ip_addresses[0].address.split('/')[0] }}"
-              subnet: "{{ interface.ip_addresses[0].address | network_address(append_subnet=True) }}"
-              hostname: "{{ inventory_hostname }}"
-        loop: "{{ interfaces | selectattr('name', 'match', '.*net[01]$') | list }}"   
-        loop_control:
-          loop_var: interface                                 # Find the interface ending in net0 or net1 only 
-      delegate_to: localhost
+    - name: Gather all facts
+      ansible.builtin.setup:
+
+    - name: Enabling DHCP for interfaces on {{ inventory_hostname }}
+      ansible.builtin.include_role:
+        name: manage-k3s-node
+        tasks_from: update-network-interface-config 
+      loop:
+        - "{{ proxmox_agent_interfaces[1].name }}"
+        - "{{ proxmox_agent_interfaces[2].name }}"
+      loop_control:
+        loop_var: network_interface_name      
+
+    # - name: Restart VM
+    #   community.proxmox.proxmox_kvm:
+    #     api_user: "{{ node_token_user }}"
+    #     api_token_id: "{{ node_token_id }}"
+    #     api_token_secret: "{{ node_token_secret }}"
+    #     api_host: "{{ node_uri }}:{{ node_port }}"
+    #     name: "{{ inventory_hostname }}"
+    #     node: "{{ node_name }}"
+    #     state: restarted                           
+    #   delegate_to: localhost

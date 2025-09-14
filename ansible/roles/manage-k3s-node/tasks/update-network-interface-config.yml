@@ -1,0 +1,16 @@
+---
+- name: Making elevated commands
+  block:
+  - name: Renders network configuration for {{ network_interface_name }}
+    template: 
+      src: 10-ensXX.network.j2
+      dest: /etc/systemd/network/10-{{ network_interface_name }}.network
+      owner: 'root'
+      group: 'root'
+      mode: '0644'
+
+  - name: Restart service
+    systemd_service:
+      name: systemd-networkd
+      state: restarted
+  become: true
