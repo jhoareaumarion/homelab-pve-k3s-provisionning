@@ -2,13 +2,18 @@ terraform {
   required_providers {
     proxmox = {
       source  = "bpg/proxmox"
-      version = "0.83.0"
+      version = "0.93.0"
     }
     
     http = {
       source = "hashicorp/http"
-      version = "3.4.5"
+      version = "3.5.0"
     }    
+
+    time = {
+      source = "hashicorp/time"
+      version = "0.13.1"
+    }
   }
 }
 
@@ -44,12 +49,12 @@ data "http" "get_host" {
 
 resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
   count = local.k3s_master_nodes_number
-  name = "home-desk-r04-mer01-10-mkub-${format("%02d", count.index+1)}"
+  name = "home-desk-r04-mer01-20-mkub-${format("%02d", count.index+1)}"
   description = "Managed by OpenTofu"  
-  tags = ["k3s-master-node","opentofu"]
+  tags = ["k3s-master-node","opentofu","k3s-master-node-init"]
 
   node_name = "mercury"
-  vm_id = 10100 + count.index+1
+  vm_id = 20100 + count.index+1
 
   cpu {
     cores      = 2
@@ -75,16 +80,14 @@ resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
   initialization {
     datastore_id = "local-zfs"
     interface = "ide2"
+    network_data_file_id = proxmox_virtual_environment_file.network_data_config.id
     user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
     meta_data_file_id = proxmox_virtual_environment_file.master_meta_data_cloud_config[count.index].id
   }
   bios        = "ovmf"  
 
-  serial_device {
-  }
-
   vga {
-    type = "serial0"
+    type = "virtio"
   }
   efi_disk {
     type = "4m"
@@ -96,19 +99,16 @@ resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
   network_device {
     model  = "virtio"
     bridge = "vmbr0"
-    vlan_id = 10
-  }
-  
-  network_device {
-    model  = "virtio"
-    bridge = "vmbr0"
-    vlan_id = 50
+    mac_address = "${local.host.config_context.cluster_base_mac_address}:${local.host.config_context.master_mac_address_octet}:${format("%02d", count.index+1)}"
   }
 
-  network_device {
-    model  = "virtio"
-    bridge = "vmbr0"
-    vlan_id = 90
+  dynamic "network_device" {
+      for_each = var.master_node_temporary_interface[count.index]  ? [1] : []
+      content {
+        model   = "virtio"
+        bridge  = "vmbr0"
+        vlan_id = 90
+      }
   }
 
   operating_system {
@@ -129,14 +129,15 @@ resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
     ]
   }
 }
+
 resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
   count = local.k3s_worker_nodes_number
-  name = "home-desk-r04-mer01-10-wkub-${format("%02d", count.index+1)}"
+  name = "home-desk-r04-mer01-20-wkub-${format("%02d", count.index+1)}"
   description = "Managed by OpenTofu"  
-  tags = ["k3s-worker-node","opentofu"]
+  tags = ["k3s-worker-node","opentofu","k3s-worker-node-init"]
 
   node_name = "mercury"
-  vm_id = 10200 + count.index+1
+  vm_id = 20200 + count.index+1
 
   cpu {
     cores      = 2
@@ -162,16 +163,15 @@ resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
   initialization {
     datastore_id = "local-zfs"
     interface = "ide2"
+    network_data_file_id = proxmox_virtual_environment_file.network_data_config.id
     user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
     meta_data_file_id = proxmox_virtual_environment_file.worker_meta_data_cloud_config[count.index].id
   }
   bios        = "ovmf"  
 
-  serial_device {
-  }
 
   vga {
-    type = "serial0"
+    type = "virtio"
   }
   efi_disk {
     type = "4m"
@@ -183,19 +183,7 @@ resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
   network_device {
     model  = "virtio"
     bridge = "vmbr0"
-    vlan_id = 10
-  }
-  
-  network_device {
-    model  = "virtio"
-    bridge = "vmbr0"
-    vlan_id = 50
-  }
-
-  network_device {
-    model  = "virtio"
-    bridge = "vmbr0"
-    vlan_id = 90
+    mac_address = "${local.host.config_context.cluster_base_mac_address}:${local.host.config_context.worker_mac_address_octet}:${format("%02d", count.index+1)}"
   }
 
   operating_system {
@@ -226,6 +214,7 @@ resource "proxmox_virtual_environment_download_file" "cloud_image" {
     for f in module.secrets_module.logins["ci"].field : f
     if f.name == "file-name"
   ][0].text 
+  overwrite     = true
 }
 
 resource "proxmox_virtual_environment_file" "master_meta_data_cloud_config" {
@@ -237,10 +226,10 @@ resource "proxmox_virtual_environment_file" "master_meta_data_cloud_config" {
   source_raw {
     data = <<-EOF
     #cloud-config
-    local-hostname: home-desk-r04-mer01-10-mkub-${format("%02d", count.index)}
+    local-hostname: home-desk-r04-mer01-20-mkub-${format("%02d", count.index+1)}
     EOF
 
-    file_name = "meta-data-cloud-config-master-${format("%02d", count.index)}.yaml"
+    file_name = "meta-data-cloud-config-master-${format("%02d", count.index+1)}"
   }
 }
 
@@ -253,10 +242,10 @@ resource "proxmox_virtual_environment_file" "worker_meta_data_cloud_config" {
   source_raw {
     data = <<-EOF
     #cloud-config
-    local-hostname: home-desk-r04-mer01-10-wkub-${format("%02d", count.index)}
+    local-hostname: home-desk-r04-mer01-20-wkub-${format("%02d", count.index+1)}
     EOF
 
-    file_name = "meta-data-cloud-config-worker-${format("%02d", count.index)}.yaml"
+    file_name = "meta-data-cloud-config-worker-${format("%02d", count.index+1)}"
   }
 }
 
@@ -269,6 +258,12 @@ resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
     data = <<-EOF
     #cloud-config
     timezone: Europe/Paris
+    chpasswd:
+      users:
+        - name: ${module.secrets_module.logins["user"].username}
+          password: ${module.secrets_module.logins["user"].password}
+          type: text
+      expire: false
     users:
       - default
       - name: ${module.secrets_module.logins["user"].username}
@@ -278,37 +273,68 @@ resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
         ssh_authorized_keys:
           - ${module.secrets_module.ssh_keys["user"].public_key}
         sudo: ALL=(ALL) NOPASSWD:ALL
-        passwd: "${sha512(module.secrets_module.logins["user"].password)}"
-      - keymap:
-        layout: fr   
       - name: ${module.secrets_module.logins["control-node"].username}
         groups:
           - sudod
         shell: /bin/bash
         ssh_authorized_keys:
-          - ${module.secrets_module.ssh_keys["control-node"].public_key} 
+          - ${module.secrets_module.ssh_keys["control-node"].public_key}
         sudo: ALL=(ALL) NOPASSWD:ALL
-      - keymap:
-          layout: fr
+    keyboard:
+      layout: fr
+    bootcmd:
+      - rm -f /sbin/crda
+      - apt-get purge -y crda wireless-regdb
     runcmd:
-      - |
-        cat <<EOT >> /etc/systemd/network/10-ens20.network                  # ens20 is the third interface, connected to the landing VLAN
-        [Match]
-        Name=ens20
-
-        [Network]
-        DHCP=yes
-        EOT
       - systemctl restart systemd-networkd
-      - apt-get update
-      - apt-get install -y qemu-guest-agent
+      - apt update
+      - apt install -y qemu-guest-agent
       - systemctl enable qemu-guest-agent
       - systemctl start qemu-guest-agent
-      - echo "done" > /tmp/cloud-config.done    
+      - echo "done" > /tmp/cloud-config.done
     output: {all: '| tee -a /var/log/cloud-init-output.log'}
-    
     EOF
 
-    file_name = "user-data-cloud-config.yaml"
+    file_name = "user-data"
+  }
+}
+
+resource "proxmox_virtual_environment_file" "network_data_config" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "mercury"
+
+  source_raw {
+    data = <<-EOF
+#cloud-config
+network:
+  version: 2
+  ethernets:
+    ens18:
+      match:
+        name: ens18
+      dhcp4: no
+      link-local: []
+  vlans:
+    ens18.20:
+      id: 20
+      link: ens18
+      dhcp4: yes
+      dhcp4-overrides:
+        route-metric: 100
+      link-local: []
+    ens18.50:
+      id: 50
+      link: ens18
+      dhcp4: no
+      link-local: []
+    ens18.60:
+      id: 60
+      link: ens18
+      dhcp4: no
+      link-local: []
+  renderer: networkd
+EOF
+    file_name = "network-config"
   }
 }
