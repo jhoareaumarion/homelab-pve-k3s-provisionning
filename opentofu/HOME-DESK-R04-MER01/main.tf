@@ -338,3 +338,20 @@ EOF
     file_name = "network-config"
   }
 }
+
+resource "null_resource" "attach_physical_disk_to_homelab_nas_playbook" {
+  count = local.vm.status.value == "staged" ? 1 : 0
+  
+  provisioner "local-exec" {
+    command = <<-EOF
+    ansible-playbook ../../ansible/initialize-k3s-into-homelab.yml \
+    EOF
+    environment = {
+      ANSIBLE_FORCE_COLOR = "true"
+      ANSIBLE_TIMEOUT     = "120"
+      ANSIBLE_CONFIG      = "../../ansible/ansible.cfg"
+      BW_SESSION          = "redacted"
+    }
+  }
+  depends_on = [proxmox_virtual_environment_vm.home-desk-r01-jup01-50-tnas01]
+}
