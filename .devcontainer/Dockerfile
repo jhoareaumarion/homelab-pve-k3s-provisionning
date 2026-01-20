@@ -11,6 +11,9 @@ COPY ansible/install_ansible.sh /tmp/install_ansible.sh
 COPY bitwarden/install_bw.sh /tmp/install_bw.sh
 COPY post_create.sh /usr/local/bin/post_create.sh
 
+# Make scripts executable
+RUN chmod +x /tmp/install_*.sh /usr/local/bin/post_create.sh
+
 # Making post_create runnable
 RUN chmod +x /usr/local/bin/post_create.sh
 
