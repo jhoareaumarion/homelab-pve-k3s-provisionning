@@ -36,6 +36,7 @@ locals{
   host = jsondecode(data.http.get_host.response_body).results[0]
   k3s_master_nodes_number = local.host.custom_fields.k3s_master_nodes_number
   k3s_worker_nodes_number = local.host.custom_fields.k3s_worker_nodes_number
+  k3s_egress_gateways = local.host.custom_fields.k3s_egress_gateways
 }
 
 data "http" "get_host" {
@@ -63,18 +64,18 @@ resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
   }
   
   memory     {
-    dedicated = 2048
-    floating = 2048
+    dedicated = 4096
+    floating = 4096
   }
 
   disk {
-    datastore_id  = "local-zfs"
+    datastore_id  = "home-desk-r01-jup01"
     import_from = proxmox_virtual_environment_download_file.cloud_image.id
     interface = "scsi0"
     iothread = true
     backup = true
     discard = "on"
-    size     = 3
+    size     = 32
   }
 
   initialization {
@@ -126,6 +127,7 @@ resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
 
   lifecycle {
     ignore_changes = [ 
+      network_device
     ]
   }
 }
@@ -134,7 +136,16 @@ resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
   count = local.k3s_worker_nodes_number
   name = "home-desk-r04-mer01-20-wkub-${format("%02d", count.index+1)}"
   description = "Managed by OpenTofu"  
-  tags = ["k3s-worker-node","opentofu","k3s-worker-node-init"]
+  tags = concat(
+      [
+        "k3s-worker-node",
+        "opentofu",
+        "k3s-worker-node-init"
+      ],
+      count.index >= local.k3s_worker_nodes_number - length(local.k3s_egress_gateways) ?
+      ["k3s-egress-gateway","k3s-egress-gateway-vlan-${local.k3s_egress_gateways[count.index - local.k3s_worker_nodes_number].vid}"] :
+      []
+  )      
 
   node_name = "mercury"
   vm_id = 20200 + count.index+1
@@ -146,18 +157,18 @@ resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
   }
   
   memory     {
-    dedicated = 2048
-    floating = 2048
+    dedicated = 4096
+    floating = 4096
   }
 
   disk {
-    datastore_id  = "local-zfs"
+    datastore_id  = "home-desk-r01-jup01"
     import_from = proxmox_virtual_environment_download_file.cloud_image.id
     interface = "scsi0"
     iothread = true
     backup = true
     discard = "on"
-    size     = 3
+    size     = 32
   }
 
   initialization {
@@ -201,6 +212,7 @@ resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
 
   lifecycle {
     ignore_changes = [ 
+      network_device
     ]
   }
 }
@@ -339,9 +351,7 @@ EOF
   }
 }
 
-resource "null_resource" "attach_physical_disk_to_homelab_nas_playbook" {
-  count = local.vm.status.value == "staged" ? 1 : 0
-  
+resource "null_resource" "initialize-k3s-into-homelab_playbook" {  
   provisioner "local-exec" {
     command = <<-EOF
     ansible-playbook ../../ansible/initialize-k3s-into-homelab.yml \
@@ -350,8 +360,8 @@ resource "null_resource" "attach_physical_disk_to_homelab_nas_playbook" {
       ANSIBLE_FORCE_COLOR = "true"
       ANSIBLE_TIMEOUT     = "120"
       ANSIBLE_CONFIG      = "../../ansible/ansible.cfg"
-      BW_SESSION          = "redacted"
+      BW_SESSION          = "cnjksjWECNlYzTDVDP3POUzLyie1JXUh2HqeB9n37rbOA6OieSp9VqGAU91igURJoFxAz+MAgvXpH2eQSGR8Yg=="
     }
   }
-  depends_on = [proxmox_virtual_environment_vm.home-desk-r01-jup01-50-tnas01]
+  depends_on = [proxmox_virtual_environment_vm.k3s_worker_nodes,proxmox_virtual_environment_vm.k3s_master_nodes]
 }

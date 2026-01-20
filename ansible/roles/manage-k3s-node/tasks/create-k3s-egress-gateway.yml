@@ -1,0 +1,4 @@
+---
+# TODO
+# SETUP ENS18 AND 60 ON EGRESS GATEWAY TO DO DHCP (by default its no on K3S VMs)
+# PERFORM EGRESS GATEWAY INSTALL AS PER https://docs.cilium.io/en/stable/network/egress-gateway/egress-gateway

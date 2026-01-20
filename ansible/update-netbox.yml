@@ -1,0 +1,28 @@
+---
+- name: Performing the actual update of Netbox
+  hosts: "HOME-DESK-R04-MER01-20-NBX01"
+  gather_facts: false
+  vars_files:
+    - update-netbox.secrets.yml
+  tasks:
+    - name: Write private key to /tmp/ansible.key
+      ansible.builtin.copy:
+        dest: /tmp/ansible.key
+        content: "{{ ansible_key }}"
+        mode: '0600'
+      delegate_to: localhost
+
+    - name: "Settings facts to connect to host"
+      ansible.builtin.set_fact:
+        ansible_user: "{{ ansible_node_username }}"
+        ansible_ssh_private_key_file: /tmp/ansible.key
+
+    - name: Gather all facts
+      ansible.builtin.setup:
+
+    - name: Update Netbox
+      ansible.builtin.include_role:
+        name: manage-netbox
+        tasks_from: update-netbox-to-version
+      vars:
+        target_version: v4.4.1

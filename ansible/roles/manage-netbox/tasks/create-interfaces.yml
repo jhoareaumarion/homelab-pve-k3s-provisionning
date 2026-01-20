@@ -1,58 +1,124 @@
 ---
 - name: Include secrets
   ansible.builtin.include_vars: secrets.yml
-  
-- name: Create Interface
-  netbox.netbox.netbox_vm_interface:
-    netbox_url: "{{ netbox_uri }}"
-    netbox_token: "{{ netbox_token }}"
-    data:
-      name: "{{ inventory_hostname }}:{{ item.name }}"
-      virtual_machine: "{{ inventory_hostname }}"
-      mode: Tagged
-      tagged_vlans:
-        - name: "{{ item.vlan }}"
-          site: HOME
-      custom_fields:
-        interface_bridge: 33
-    state: present 
 
-- name: Create MAC addresses within NetBox with only required information
-  netbox.netbox.netbox_mac_address:
-    netbox_url: "{{ netbox_uri }}"
-    netbox_token: "{{ netbox_token }}"
-    data:
-      mac_address: "{{ item.mac }}"
-      assigned_object:
-        virtual_machine: "{{ vm.virtual_machine.name }}"
-        name: "{{ vm.virtual_machine.name }}:{{ item.name }}"
-    state: present  
+- name: Create Interface (no VLAN)
+  when: item.vlan is defined
+  block:
+    - name: Create Interface
+      netbox.netbox.netbox_vm_interface:
+        netbox_url: "{{ netbox_uri }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ inventory_hostname }}:{{ item.name }}"
+          virtual_machine: "{{ inventory_hostname }}"
+          custom_fields:
+            interface_bridge: 33
+        state: present
+    - name: Create MAC addresses within NetBox with only required information
+      netbox.netbox.netbox_mac_address:
+        netbox_url: "{{ netbox_uri }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          mac_address: "{{ item.mac }}"
+          assigned_object:
+            virtual_machine: "{{ vm.virtual_machine.name }}"
+            name: "{{ vm.virtual_machine.name }}:{{ item.name }}"
+        state: present
+      when: item.mac is defined
+    - name: Assign MAC to interface
+      netbox.netbox.netbox_vm_interface:
+        netbox_url: "{{ netbox_uri }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ inventory_hostname }}:{{ item.name }}"
+          virtual_machine: "{{ inventory_hostname }}"
+          mac_address: "{{ item.mac }}"
+          primary_mac_address: "{{ item.mac }}"
+          custom_fields:
+            interface_bridge: 33
+        state: present
+      when: item.mac is defined
 
-- name: Assign MAC to interface
-  netbox.netbox.netbox_vm_interface:
-    netbox_url: "{{ netbox_uri }}"
-    netbox_token: "{{ netbox_token }}"
-    data:
-      name: "{{ inventory_hostname }}:{{ item.name }}"
-      virtual_machine: "{{ inventory_hostname }}"
-      mac_address: "{{ item.mac }}"
-      primary_mac_address: "{{ item.mac }}"
-      mode: Tagged
-      tagged_vlans:
-        - name: "{{ item.vlan }}"
-          site: HOME
-      custom_fields:
-        interface_bridge: 33
-    state: present 
+- name: Create Interface (with VLAN)
+  when: item.vlan is defined
+  block:
+    - name: Create Interface
+      netbox.netbox.netbox_vm_interface:
+        netbox_url: "{{ netbox_uri }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ inventory_hostname }}:{{ item.name }}"
+          virtual_machine: "{{ inventory_hostname }}"
+          mode: Tagged
+          tagged_vlans:
+            - name: "{{ item.vlan }}"
+              site: HOME
+          custom_fields:
+            interface_bridge: 33
+        state: present
+    - name: Create MAC addresses within NetBox with only required information
+      netbox.netbox.netbox_mac_address:
+        netbox_url: "{{ netbox_uri }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          mac_address: "{{ item.mac }}"
+          assigned_object:
+            virtual_machine: "{{ vm.virtual_machine.name }}"
+            name: "{{ vm.virtual_machine.name }}:{{ item.name }}"
+        state: present
+      when: item.mac is defined
+    - name: Assign MAC to interface
+      netbox.netbox.netbox_vm_interface:
+        netbox_url: "{{ netbox_uri }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ inventory_hostname }}:{{ item.name }}"
+          virtual_machine: "{{ inventory_hostname }}"
+          mode: Tagged
+          tagged_vlans:
+            - name: "{{ item.vlan }}"
+              site: HOME
+          mac_address: "{{ item.mac }}"
+          primary_mac_address: "{{ item.mac }}"
+          custom_fields:
+            interface_bridge: 33
+        state: present
+      when: item.mac is defined
 
+- name: Creating IP address and binding as primary
+  when: item.mac is defined and item.prefix is defined
+  block:
+    - name: Determining ip address
+      ansible.builtin.set_fact:
+        expected_ip_address: "10.10.20.2{{ inventory_hostname | regex_search('-[0-9]{2}$') | regex_replace('-', '') }}"    
+    
+    - name: Setting interface fact
+      ansible.builtin.set_fact:
+        interface:
+          mac_address: "{{ item.mac | lower }}"
+          ip_address: "{{ expected_ip_address }}"
+          #primary_ip4: "{{ expected_ip_address }}/24"
+          subnet: "{{ item.prefix }}"
 
-- name: Assign IP address to interface 
-  netbox.netbox.netbox_ip_address:
-    netbox_url: "{{ netbox_uri }}"
-    netbox_token: "{{ netbox_token }}"
-    data:
-      prefix: "{{ item.prefix }}"
-      assigned_object: 
-        name: "{{ inventory_hostname }}:{{ item.name }}"
-        virtual_machine: "{{ inventory_hostname }}"
-    state: present
+    - name: Assign IP address to interface
+      netbox.netbox.netbox_ip_address:
+        netbox_url: "{{ netbox_uri }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          address: "{{ interface.ip_address }}"
+          assigned_object:
+            name: "{{ inventory_hostname }}:{{ item.name }}"
+            virtual_machine: "{{ inventory_hostname }}"
+        state: present
+      register: ip
+
+    - name: Making this IP address primary
+      netbox.netbox.netbox_virtual_machine:
+        netbox_url: "{{ netbox_uri }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ inventory_hostname }}"
+          primary_ip4: "{{ ip.ip_address.id }}"
+        state: present
+

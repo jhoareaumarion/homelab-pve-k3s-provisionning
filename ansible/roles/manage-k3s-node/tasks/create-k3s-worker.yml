@@ -1,0 +1,28 @@
+---
+- name: Create K3S Worker
+  block:
+  - name: Get K3S token from master
+    ansible.builtin.slurp:
+      src: /var/lib/rancher/k3s/server/node-token
+    delegate_to: "{{ k3s_master_host }}"
+    run_once: true
+    register: k3s_token_file
+
+  - name: "Ensure .kube directory exists for {{ node_username }}"
+    file:
+      path: "/home/{{ node_username }}/.kube"
+      state: directory
+      owner: "{{ node_username }}"
+      group: "{{ node_username }}"
+      mode: 0700
+
+  - name: deb
+    debug: 
+      msg: "curl -sfL {{ k3s_url }} | K3S_URL=https://{{ k3s_master_ip }}:6443 K3S_TOKEN={{ k3s_token_file.content | b64decode | trim }}"
+  
+  - name: Download and install k3s agent
+    shell: |
+      curl -sfL {{ k3s_url }} | K3S_URL=https://{{ k3s_master_ip }}:6443 K3S_TOKEN={{ k3s_token_file.content | b64decode | trim }} sh -
+    # args:
+    #   creates: /usr/local/bin/k3s
+  become: true

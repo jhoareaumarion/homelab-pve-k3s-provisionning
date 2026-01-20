@@ -1,7 +1,7 @@
 ---
-- name: Include secrets
-  ansible.builtin.include_vars: secrets.yml
-  
+# - name: Include secrets
+#   ansible.builtin.include_vars: secrets.yml
+
 - name: Setting endpoints
   set_fact:
     found_reservations: []

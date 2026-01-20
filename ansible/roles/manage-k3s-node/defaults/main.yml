@@ -1,3 +1,8 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # defaults file for roles/manage-k3s-node
+k3s_url: https://get.k3s.io
+cilium_version: v0.19.0
+hubble_version: v1.18.5
+cli_arch: amd64
+nginx_url: https://helm.nginx.com/stable
