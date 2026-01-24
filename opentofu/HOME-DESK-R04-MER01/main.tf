@@ -143,10 +143,10 @@ resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
         "k3s-worker-node-init"
       ],
       count.index >= local.k3s_worker_nodes_number - length(local.k3s_egress_gateways) ?
-      ["k3s-egress-gateway","k3s-egress-gateway-vlan-${local.k3s_egress_gateways[count.index - local.k3s_worker_nodes_number].vid}"] :
+      ["k3s-egress-gateway","k3s-egress-gateway-vlan-${local.k3s_egress_gateways[count.index - length(local.k3s_egress_gateways)].vid}"] :
       []
   )      
-
+  
   node_name = "mercury"
   vm_id = 20200 + count.index+1
 

@@ -16,10 +16,6 @@
       group: "{{ node_username }}"
       mode: 0700
 
-  - name: deb
-    debug: 
-      msg: "curl -sfL {{ k3s_url }} | K3S_URL=https://{{ k3s_master_ip }}:6443 K3S_TOKEN={{ k3s_token_file.content | b64decode | trim }}"
-  
   - name: Download and install k3s agent
     shell: |
       curl -sfL {{ k3s_url }} | K3S_URL=https://{{ k3s_master_ip }}:6443 K3S_TOKEN={{ k3s_token_file.content | b64decode | trim }} sh -

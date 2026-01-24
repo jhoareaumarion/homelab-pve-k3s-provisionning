@@ -1,0 +1,19 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: vlan20-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 10.10.20.150-10.10.20.199
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default-advertisement
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - vlan20-pool
+  interfaces:
+  - ens18.20

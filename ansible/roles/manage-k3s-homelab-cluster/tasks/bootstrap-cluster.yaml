@@ -1,0 +1,71 @@
+---
+# TODO
+# Add private key for sealed secret and store it also on bw to make it resilient to full recreation
+# regenerate sealed secrets file like ovh crdds
+# update helm charts call because of sealed secret params not ok right now (not good private key)
+- name: "Add Helm repositories"
+  kubernetes.core.helm_repository:
+    name: "{{ item.name }}"
+    repo_url: "{{ item.repo_url }}"
+    state: present
+  loop: "{{ helm_repositories }}"
+
+
+- name: "Deploy MetalLB/CertManager/SealedSecrets/Bitwarden Operator"
+  kubernetes.core.helm:
+    release_name: "{{ item.release_name }}"
+    chart_ref: "{{ item.chart_ref }}"
+    chart_version: "{{ item.chart_version | default(omit) }}"
+    release_namespace: "{{ item.release_namespace }}"
+    release_state: present
+    kubeconfig: /home/{{ control_node_username }}/.kube/config
+    create_namespace: "{{ item.create_namespace | default(false) }}"
+    release_values: "{{ item.release_values | default(omit) }}"
+    set_values: "{{ item.set_values | default(omit) }}"
+    values_files: "{{ item.values_files | default(omit) }}"
+  loop: 
+  - name: metallb
+    release_name: metallb
+    chart_ref: metallb/metallb
+    release_namespace: metallb-system
+    create_namespace: true
+  - name: jetstack
+    release_name: cert-manager
+    chart_ref: jetstack/cert-manager
+    release_namespace: cert-manager
+    chart_version: v1.18.2
+    create_namespace: true
+    release_values:
+      installCRDs: true
+  - name: sealed-secrets
+    release_name: sealed-secrets-controller
+    chart_ref: sealed-secrets/sealed-secrets
+    release_namespace: kube-system
+    set_values:
+      - value: fullnameOverride=sealed-secrets-controller
+        value_type: string
+
+  - name: bitwarden
+    release_name: sm-operator
+    chart_ref: bitwarden/sm-operator
+    release_namespace: sm-operator-system
+    create_namespace: true
+    release_values: "{{ bitwarden_helm_values }}"
+
+- name: Import certificate used for kubeseal cluster-wide
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      type: kubernetes.io/tls
+      metadata:
+        name: "homelab-sealed-secrets-secret"
+        namespace: kube-system
+        labels:
+          sealedsecrets.bitnami.com/sealed-secrets-key: active
+      data:
+        tls.crt: "{{ kubeseal_cert | b64encode }}"
+        tls.key: "{{ kubeseal_key | b64encode }}"
+    kubeconfig: "{{ local_kubeconfig_path }}"
+  delegate_to: localhost

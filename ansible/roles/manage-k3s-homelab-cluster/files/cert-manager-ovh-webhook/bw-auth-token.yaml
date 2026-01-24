@@ -1,0 +1,15 @@
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: null
+  name: bw-auth-token
+  namespace: cert-manager
+spec:
+  encryptedData:
+    token: AgBf5ivqCzhN42L8lZhRoAGvNxr9m/261LIDzW6fHbHjHLYUAyYk31gO/XcuA6xdHG7Bs6iVO0sWozYWUVo8O67rZqhzZiKTybsumDNi7y9RAtL5ajQCN0nSJ2SK4EDfzMCKxA092uN0yvNwKuxZ64AT3Mm7+w+nb29H7Y9MGoLjlJ4X1SbssfuOkYY5LSUsTMOWfZ14vCJj9XIiwcz8/eP1xd7FklQqk6v+p1JCoxtCgevoZ1TkpF7//n3o0vdE8zFdA//q8+RHtL+7GtbTqqf7NrPxLR9l8FIT+gyzV2Jr/ZsQdKQjSPqloGdR2TOvzpqQ2hWAtn00O3NWLh4W2cv2gA9fOkGwBGlbHroJz0kr9kWAR04EZzsHRTKDhv0hcafA2EUxMCy37ClUumf2ogvCQZermFW4F6zMfCZuAOtyDGy8Z4M5Cee7lTAcRrYcIbo4/yRo8FxxOaXwGnCdAVKLzVCrW+KA+KRbN/Ia5nAiw/7kKzBWzhjjTXQRmBgLZCt3nkz+IvwTclQxlSERg/ql2QRV9UqbFlYbktd2mOPdhmcqYKH1iiYMAUmWBG5u1sjjylxp6Asw42p02Zd5I0xX0XspU6hEGZ5Y/J1WNgNptYKDukBtXr0Mj67IiJ2O0cZkOkYNPdn8Rj4CwOoGJY4LlYVuH8dCpceaTer/07O/kwEQlqoVRQ1AL3RqL0gYze2lWiOS7bsw3uBlpRT4aT4tWVPk+/B8g0oJfFZ302S5PQTGpeZQHE445SCsLMJs9BdzW4CDuPK45IqzKZWs1clqEEwFl9U+XcaGR6omhPbxECRAjSAN+x62rmcyCvSt
+  template:
+    metadata:
+      creationTimestamp: null
+      name: bw-auth-token
+      namespace: cert-manager
+    type: Opaque

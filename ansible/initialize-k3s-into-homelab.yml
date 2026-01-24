@@ -26,6 +26,8 @@
         control_node_key: "{{ bitwarden_secrets.control_node_key }}"
         control_node_username: "{{ bitwarden_secrets.control_node_username }}"
         node_username: "{{ bitwarden_secrets.node_username }}"
+        kubeseal_cert: "{{ bitwarden_secrets.kubeseal_cert }}"
+        kubeseal_key: "{{ bitwarden_secrets.kubeseal_key }}"
       no_log: true
 
 - name: Deploy-k3s
@@ -86,9 +88,7 @@
       ansible.builtin.set_fact:
         ansible_user: "{{ control_node_username }}"
         ansible_ssh_private_key_file: "{{ ssh_key_path }}"
-    - name:
-      debug:
-        msg: "{{ ansible_host }}"
+
     - name: Gather all facts
       ansible.builtin.setup:
 
@@ -140,6 +140,11 @@
         tasks_from: create-k3s-egress-gateway
       when: "'k3s-egress-gateway' in proxmox_tags.split(';')"
 
+    - name: Bootstrap cluster 
+      ansible.builtin.include_role:
+        name: manage-k3s-homelab-cluster
+        tasks_from: bootstrap-cluster
+      when: "'k3s-master-node-init' in proxmox_tags.split(';')"
     # - name: Remove tag from VM
     #   community.proxmox.proxmox_kvm:
     #     api_user: "{{ node_token_user }}"
