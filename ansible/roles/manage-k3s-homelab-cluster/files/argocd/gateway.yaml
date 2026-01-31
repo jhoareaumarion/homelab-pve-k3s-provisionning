@@ -6,7 +6,7 @@ metadata:
   name: argocd-gateway
   namespace: argocd
 spec:
-  gatewayClassName: nginx
+  gatewayClassName: cilium
   listeners:
   - allowedRoutes:
       namespaces:

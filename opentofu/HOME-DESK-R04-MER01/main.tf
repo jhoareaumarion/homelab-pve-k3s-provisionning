@@ -127,7 +127,9 @@ resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
 
   lifecycle {
     ignore_changes = [ 
-      network_device
+      network_device,
+      disk[0].import_from,
+      initialization
     ]
   }
 }
@@ -212,7 +214,9 @@ resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
 
   lifecycle {
     ignore_changes = [ 
-      network_device
+      network_device,
+      disk[0].import_from,
+      initialization
     ]
   }
 }
@@ -326,25 +330,26 @@ network:
       match:
         name: ens18
       dhcp4: no
+      mtu: 1400
       link-local: []
   vlans:
     ens18.20:
       id: 20
       link: ens18
       dhcp4: yes
+      mtu: 1400
       dhcp4-overrides:
         route-metric: 100
-      link-local: []
     ens18.50:
       id: 50
       link: ens18
+      mtu: 1400
       dhcp4: no
-      link-local: []
     ens18.60:
       id: 60
       link: ens18
+      mtu: 1400
       dhcp4: no
-      link-local: []
   renderer: networkd
 EOF
     file_name = "network-config"
@@ -360,7 +365,7 @@ resource "null_resource" "initialize-k3s-into-homelab_playbook" {
       ANSIBLE_FORCE_COLOR = "true"
       ANSIBLE_TIMEOUT     = "120"
       ANSIBLE_CONFIG      = "../../ansible/ansible.cfg"
-      BW_SESSION          = "cnjksjWECNlYzTDVDP3POUzLyie1JXUh2HqeB9n37rbOA6OieSp9VqGAU91igURJoFxAz+MAgvXpH2eQSGR8Yg=="
+      BW_SESSION          = "redacted"
     }
   }
   depends_on = [proxmox_virtual_environment_vm.k3s_worker_nodes,proxmox_virtual_environment_vm.k3s_master_nodes]

@@ -14,17 +14,27 @@ fi
 
 case $1 in 
     -encrypt)
-            echo "[manage-sensitive-vars.sh]: Encrypting sensitive files..."
+        echo "[manage-sensitive-vars.sh]: Encrypting sensitive files..."
         for file in $(find . -type f -name "*.yml"); do
             if grep -q "encrypt: true" "$file"; then
                 echo "[manage-sensitive-vars.sh]: Encrypting $file"
                 ansible-vault encrypt $file --vault-password-file ./hooks/vault-password --encrypt-vault-id default
             fi
         done
+        for file in $(find . -type f -name "sensitive_*"); do
+            echo "[manage-sensitive-vars.sh]: Encrypting $file"
+            ansible-vault encrypt $file --vault-password-file ./hooks/vault-password --encrypt-vault-id default
+        done
         ;;
     -decrypt)
         echo "[manage-sensitive-vars.sh]: Decrypting sensitive files..."
         for file in $(find . -type f -name "*.yml"); do
+            if grep -q "\$ANSIBLE_VAULT" "$file"; then
+                echo "[manage-sensitive-vars.sh]: Decrypting $file"
+                ansible-vault decrypt $file --vault-password-file ./hooks/vault-password
+            fi
+        done        
+        for file in $(find . -type f -name "sensitive_*"); do
             if grep -q "\$ANSIBLE_VAULT" "$file"; then
                 echo "[manage-sensitive-vars.sh]: Decrypting $file"
                 ansible-vault decrypt $file --vault-password-file ./hooks/vault-password

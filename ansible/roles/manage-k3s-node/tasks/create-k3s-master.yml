@@ -36,11 +36,22 @@
       dest: "{{ local_kubeconfig_path }}"
       flat: true
 
+  - name: Set KUBECONFIG for users
+    lineinfile:
+      path: "/home/{{ item }}/.bashrc"
+      line: 'export KUBECONFIG=~/.kube/config'
+      owner: "{{ item }}"
+      group: "{{ item }}"
+      create: yes
+    loop:
+      - "{{ node_username }}"
+      - "{{ control_node_username }}"
+
   - name: Replace kubeconfig server URL with host IP
     ansible.builtin.replace:
       path: "{{ local_kubeconfig_path }}"
       regexp: '127\.0\.0\.1'
-      replace: '{{ hostvars[inventory_hostname]["ansible_default_ipv4"]["address"] }}'
+      replace: '{{ hostvars[inventory_hostname]["ansible_facts"]["default_ipv4"]["address"] }}'
     delegate_to: localhost
 
   - name: Ensure git is installed
@@ -109,16 +120,27 @@
     release_namespace: kube-system
     release_state: present
     kubeconfig: /home/{{ control_node_username }}/.kube/config
-    reuse_values: true
     release_values:
+      mtu: 1400
+      enablePMTU: true
+      operator:
+        replicas: 1
       hubble:
         relay:
           enabled: true
+        ui:
+          enabled: true
       egressGateway:
         enabled: true
+      ingressController:
+        enabled: true
+        default: true
       bpf:
         masquerade: true
       kubeProxyReplacement: true
+      gatewayAPI:
+        enabled: true
+        replicas: 1
 
 - name: Download Hubble client tarball
   ansible.builtin.get_url:

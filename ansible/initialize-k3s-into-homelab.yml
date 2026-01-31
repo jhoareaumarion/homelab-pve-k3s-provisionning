@@ -26,46 +26,44 @@
         control_node_key: "{{ bitwarden_secrets.control_node_key }}"
         control_node_username: "{{ bitwarden_secrets.control_node_username }}"
         node_username: "{{ bitwarden_secrets.node_username }}"
-        kubeseal_cert: "{{ bitwarden_secrets.kubeseal_cert }}"
-        kubeseal_key: "{{ bitwarden_secrets.kubeseal_key }}"
       no_log: true
 
 - name: Deploy-k3s
   hosts: k3s_master_node_init,k3s_worker_node_init
   gather_facts: false
   tasks:
-    # - name: Updating Netbox
-    #   delegate_to: localhost
-    #   block:
-    #     - name: Create VM
-    #       ansible.builtin.include_role:
-    #         name: manage-netbox
-    #         tasks_from: create-vm 
+    - name: Updating Netbox
+      delegate_to: localhost
+      block:
+        - name: Create VM
+          ansible.builtin.include_role:
+            name: manage-netbox
+            tasks_from: create-vm 
 
-    #     - name: Create disks
-    #       ansible.builtin.include_role:
-    #         name: manage-netbox
-    #         tasks_from: create-disks
+        - name: Create disks
+          ansible.builtin.include_role:
+            name: manage-netbox
+            tasks_from: create-disks
 
-    #     - name: Create interfaces
-    #       ansible.builtin.include_role:
-    #         name: manage-netbox
-    #         tasks_from: create-interfaces
-    #       loop:
-    #         - name: ens18
-    #           mac: "{{ proxmox_net0.virtio }}"
-    #         - name: ens18.20
-    #           vlan: "Virtual Management"
-    #           prefix: 10.10.20.0/24
-    #         - name: ens18.50
-    #           vlan: "Service"
-    #           prefix: 10.10.50.0/24
-    #         - name: ens18.60
-    #           vlan: "Internet of Things"
-    #           prefix: 10.10.60.0/24
+        - name: Create interfaces
+          ansible.builtin.include_role:
+            name: manage-netbox
+            tasks_from: create-interfaces
+          loop:
+            - name: ens18
+              mac: "{{ proxmox_net0.virtio }}"
+            - name: ens18.20
+              vlan: "Virtual Management"
+              prefix: 10.10.20.0/24
+            - name: ens18.50
+              vlan: "Service"
+              prefix: 10.10.50.0/24
+            - name: ens18.60
+              vlan: "Internet of Things"
+              prefix: 10.10.60.0/24
 
-    #     - name: Refresh dynamic inventory
-    #       meta: refresh_inventory
+        - name: Refresh dynamic inventory
+          meta: refresh_inventory
 
     - name: Gettings credentials for VMs Node connection
       block:
