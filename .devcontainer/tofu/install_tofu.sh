@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
-
+# Fix Yarn GPG (one-time fix for devcontainer)
+mkdir -p /etc/apt/keyrings && curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --dearmor -o /etc/apt/keyrings/yarn.gpg && chmod 644 /etc/apt/keyrings/yarn.gpg && echo "deb [signed-by=/etc/apt/keyrings/yarn.gpg] https://dl.yarnpkg.com/debian/ stable main" > /etc/apt/sources.list.d/yarn.list
 # Installing required packages to install OpenTofu
 apt-get update
 apt-get install -y apt-transport-https ca-certificates curl gnupg
