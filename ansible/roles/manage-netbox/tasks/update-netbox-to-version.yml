@@ -1,0 +1,43 @@
+- name: Update-netbox/Updating netbox to {{ target_version }}
+  become: true
+  become_user: root
+  become_method: ansible.builtin.sudo
+  vars:
+    ansible_become_password: "{{ ansible_node_password }}"
+  block:
+    - name: Update-netbox/Stopping Netbox services
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - netbox
+        - netbox-rq
+    - name: Clone or update NetBox repository with correct default branch
+      ansible.builtin.git:
+        repo: "{{ netbox_git_repository }}"
+        dest: /opt/netbox
+        version: "main"  # Explicitly use 'main' as the default branch
+        force: true
+        accept_hostkey: true
+        depth: 1
+        clone: true
+        update: true
+
+    - name: Update-netbox/Checking out tag {{ target_version }}
+      ansible.builtin.git:
+        repo: "{{ netbox_git_repository }}"
+        dest: /opt/netbox
+        version: "{{ target_version }}"
+
+    - name: Update-netbox/Run the NetBox upgrade script
+      command: /opt/netbox/upgrade.sh
+
+    - name: Update-netbox/Restart Netbox services
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - netbox
+        - netbox-rq
+
+

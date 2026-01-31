@@ -1,51 +1,158 @@
 ---
-- name: Deploy-k3s
-  hosts: k3s_master_node,k3s_worker_node
+- name: Load vaulted secrets ONCE from Bitwarden lookups
+  hosts: k3s_master_node_init,k3s_worker_node_init
+  connection: local
   gather_facts: false
-  vars_files:
-    - secrets.yml
-  tasks:      
-    - name: Updating Netbox with new VMs
-      block:
-      - name: Create virtual machine within NetBox with only required information
-        netbox.netbox.netbox_virtual_machine:
-          netbox_url: "{{ netbox_uri }}"
-          netbox_token: "{{ netbox_token }}"
-          data:
-            name: "{{ inventory_hostname }}"
-            virtual_machine_role: "{{ proxmox_tags.split(';')[0] }}"
-            description: "Managed by Ansible."
-            site: HOME
-            cluster: HOME-DESK-R04-MER01-PRX01
-            device: HOME-DESK-R04-MER01
-            vcpus: "{{ proxmox_cores }}"
-            memory: "{{ proxmox_memory }}"
-            custom_fields:
-              proxmox_id: "{{ proxmox_vmid }}"
-              host_type: "Virtual Machine"
-          state: present
-        register: vm
+  tasks:
+    - name: "Get all Bitwarden records from collection"
+      ansible.builtin.set_fact:
+        bitwarden_lookup: "{{ lookup('community.general.bitwarden') }}"
+      no_log: true
 
-      - name: Create disks
-        ansible.builtin.include_role:
-          name: manage-netbox
-          tasks_from: create-disks
+    - name: "Include secrets"
+      ansible.builtin.include_vars:
+        file: "secrets/initialize-k3s-into-homelab.secrets.yml"
+        name: bitwarden_secrets
+      no_log: true
 
-      - name: Create interfaces
-        ansible.builtin.include_role:
-          name: manage-netbox
-          tasks_from: create-interfaces
-        loop:
-          - name: net0
-            mac: "{{ proxmox_net0.virtio }}"
-            vlan: "Management"
-            prefix: 10.10.10.0/24
-          - name: net1
-            mac: "{{ proxmox_net1.virtio }}"
-            vlan: "Service"
-            prefix: 10.10.50.0/24
-          - name: net2
-            mac: "{{ proxmox_net2.virtio }}"
-            vlan: "Landing"
-            prefix: 10.10.90.0/24   
+    - name: Cache all Bitwarden lookups as facts
+      ansible.builtin.set_fact:
+        node_token_user: "{{ bitwarden_secrets.node_token_user }}"
+        node_token_id: "{{ bitwarden_secrets.node_token_id }}"
+        node_token_secret: "{{ bitwarden_secrets.node_token_secret }}"
+        node_uri: "{{ bitwarden_secrets.node_uri }}"
+        node_name: "{{ bitwarden_secrets.node_name }}"
+        node_port: "{{ bitwarden_secrets.node_port }}"
+        control_node_key: "{{ bitwarden_secrets.control_node_key }}"
+        control_node_username: "{{ bitwarden_secrets.control_node_username }}"
+        node_username: "{{ bitwarden_secrets.node_username }}"
+      no_log: true
+
+- name: Deploy-k3s
+  hosts: k3s_master_node_init,k3s_worker_node_init
+  gather_facts: false
+  tasks:
+    - name: Updating Netbox
       delegate_to: localhost
+      block:
+        - name: Create VM
+          ansible.builtin.include_role:
+            name: manage-netbox
+            tasks_from: create-vm 
+
+        - name: Create disks
+          ansible.builtin.include_role:
+            name: manage-netbox
+            tasks_from: create-disks
+
+        - name: Create interfaces
+          ansible.builtin.include_role:
+            name: manage-netbox
+            tasks_from: create-interfaces
+          loop:
+            - name: ens18
+              mac: "{{ proxmox_net0.virtio }}"
+            - name: ens18.20
+              vlan: "Virtual Management"
+              prefix: 10.10.20.0/24
+            - name: ens18.50
+              vlan: "Service"
+              prefix: 10.10.50.0/24
+            - name: ens18.60
+              vlan: "Internet of Things"
+              prefix: 10.10.60.0/24
+
+        - name: Refresh dynamic inventory
+          meta: refresh_inventory
+
+    - name: Gettings credentials for VMs Node connection
+      block:
+        - name: Create SSH private key file from Bitwarden
+          ansible.builtin.tempfile:
+            state: file
+            suffix: .key
+          register: ssh_key_file
+        - name: Write private key from Bitwarden to temp file
+          ansible.builtin.copy:
+            content: "{{ control_node_key }}"
+            dest: "{{ ssh_key_file.path }}"
+            mode: '0600'
+        - name: Register SSH key file for this host
+          ansible.builtin.set_fact:
+            ssh_key_path: "{{ ssh_key_file.path }}"
+      delegate_to: localhost
+
+    - name: Apply connection variables
+      ansible.builtin.set_fact:
+        ansible_user: "{{ control_node_username }}"
+        ansible_ssh_private_key_file: "{{ ssh_key_path }}"
+
+    - name: Gather all facts
+      ansible.builtin.setup:
+
+    - name: Get current VM configuration
+      community.general.proxmox_kvm:
+        api_user: "{{ node_token_user }}"
+        api_token_id: "{{ node_token_id }}"
+        api_token_secret: "{{ node_token_secret }}"
+        api_host: "{{ node_uri }}:{{ node_port }}"
+        name: "{{ inventory_hostname }}"
+        node: "{{ node_name }}"
+        state: current
+      register: vm_config
+      delegate_to: localhost
+
+    - name: Initialize K3S on master
+      ansible.builtin.include_role:
+        name: manage-k3s-node
+        tasks_from: create-k3s-master
+      when: "'k3s-master-node-init' in proxmox_tags.split(';')"
+      
+    - name: Seting master host fact
+      set_fact:
+        k3s_master_host: >-
+          {{
+            groups['k3s_master_node'] |
+            first
+          }}
+    - name: Setting master IP fact 
+      set_fact: 
+        k3s_master_ip: "{{ (hostvars[k3s_master_host].proxmox_agent_interfaces| selectattr('name', 'equalto', 'ens18.20')| map(attribute='ip-addresses')| first| select('match', '^10\\.')| list)[0].split('/')[0] }}"
+      
+    - name: Setting master IP fact 
+      add_host:
+        name: "{{ k3s_master_host }}"
+        ansible_host: "{{ hostvars[inventory_hostname].k3s_master_ip }}"
+        ansible_user: "{{ control_node_username }}"
+        ansible_ssh_private_key_file: /tmp/control-node.key
+
+    - name: Initialize K3S on workers
+      ansible.builtin.include_role:
+        name: manage-k3s-node
+        tasks_from: create-k3s-worker
+      when: "'k3s-worker-node-init' in proxmox_tags.split(';')"
+
+    - name: Create K3S Egress gateways
+      ansible.builtin.include_role:
+        name: manage-k3s-node
+        tasks_from: create-k3s-egress-gateway
+      when: "'k3s-egress-gateway' in proxmox_tags.split(';')"
+
+    - name: Bootstrap cluster 
+      ansible.builtin.include_role:
+        name: manage-k3s-homelab-cluster
+        tasks_from: bootstrap-cluster
+      when: "'k3s-master-node-init' in proxmox_tags.split(';')"
+    # - name: Remove tag from VM
+    #   community.proxmox.proxmox_kvm:
+    #     api_user: "{{ node_token_user }}"
+    #     api_token_id: "{{ node_token_id }}"
+    #     api_token_secret: "{{ node_token_secret }}"
+    #     api_host: "{{ node_uri }}:{{ node_port }}"
+    #     name: "{{ inventory_hostname }}"
+    #     node: mercury
+    #     vmid: "{{ vm_config.vmid }}"
+    #     tags: "k3s-worker-node,opentofu"  
+    #   register: vm_update
+    #   when: "'k3s-worker-node' in proxmox_tags.split(';')"
+    #   delegate_to: localhost

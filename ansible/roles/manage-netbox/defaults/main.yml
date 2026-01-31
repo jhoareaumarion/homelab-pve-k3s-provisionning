@@ -1,3 +1,4 @@
 # SPDX-License-Identifier: MIT-0
 ---
 # defaults file for roles/manage-netbox
+netbox_git_repository: https://github.com/netbox-community/netbox.git

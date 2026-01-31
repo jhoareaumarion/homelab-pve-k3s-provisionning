@@ -1,0 +1,24 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: bitwarden-sm-operator
+  namespace: sm-operator-system
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: sm-operator
+      version: "0.x.x"  # pin to specific version
+      sourceRef:
+        kind: HelmRepository
+        name: bitwarden
+        namespace: flux-system
+      interval: 1h
+  install:
+    createNamespace: true
+  valuesFrom:
+    - kind: ConfigMap
+      name: bitwarden-values
+      valuesKey: values.yaml
+  dependsOn:
+    - name: flux-system

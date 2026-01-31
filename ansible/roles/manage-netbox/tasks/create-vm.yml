@@ -1,0 +1,22 @@
+---
+- name: Include secrets
+  ansible.builtin.include_vars: secrets.yml
+
+- name: Create virtual machine within NetBox with only required information
+  netbox.netbox.netbox_virtual_machine:
+    netbox_url: "{{ netbox_uri }}"
+    netbox_token: "{{ netbox_token }}"
+    data:
+      name: "{{ inventory_hostname }}"
+      virtual_machine_role: "{{ proxmox_tags.split(';')[0] }}"
+      description: "Managed by Ansible."
+      site: HOME
+      cluster: HOME-DESK-R04-MER01-PRX01
+      device: HOME-DESK-R04-MER01
+      vcpus: "{{ proxmox_cores }}"
+      memory: "{{ proxmox_memory }}"
+      custom_fields:
+        proxmox_id: "{{ proxmox_vmid }}"
+        host_type: "Virtual Machine"
+    state: present
+  register: vm

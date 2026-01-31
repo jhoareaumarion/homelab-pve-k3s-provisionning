@@ -1,0 +1,131 @@
+---
+# TODO
+# Add private key for sealed secret and store it also on bw to make it resilient to full recreation
+# regenerate sealed secrets file like ovh crdds
+# update helm charts call because of sealed secret params not ok right now (not good private key)
+- name: "Add Helm repositories"
+  kubernetes.core.helm_repository:
+    name: "{{ item.name }}"
+    repo_url: "{{ item.repo_url }}"
+    state: present
+  loop: "{{ helm_repositories }}"
+
+- name: "Deploy helm charts on master node"
+  kubernetes.core.helm:
+    release_name: "{{ item.release_name }}"
+    chart_ref: "{{ item.chart_ref }}"
+    chart_version: "{{ item.chart_version | default(omit) }}"
+    release_namespace: "{{ item.release_namespace }}"
+    release_state: present
+    kubeconfig: /home/{{ control_node_username }}/.kube/config
+    create_namespace: "{{ item.create_namespace | default(false) }}"
+    release_values: "{{ item.release_values | default(omit) }}"
+    set_values: "{{ item.set_values | default(omit) }}"
+    values_files: "{{ item.values_files | default(omit) }}"
+  loop: "{{ step1_helm_charts_to_install }}"
+
+- name: Import certificate used for kubeseal cluster-wide
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      type: kubernetes.io/tls
+      metadata:
+        name: "homelab-sealed-secrets-secret"
+        namespace: kube-system
+        labels:
+          sealedsecrets.bitnami.com/sealed-secrets-key: active
+      data:
+        tls.crt: "{{ lookup('file', 'files/kubeseal/sensitive_kubeseal.crt') | b64encode }}"
+        tls.key: "{{ lookup('file', 'files/kubeseal/sensitive_kubeseal.key') | b64encode }}"
+    kubeconfig: "{{ local_kubeconfig_path }}"
+  delegate_to: localhost
+
+- name: Apply cert-manager OVH webhook sealed credentials
+  kubernetes.core.k8s:
+    state: present
+    src: "files/cert-manager-ovh-webhook/ovh-credentials.yaml"
+    kubeconfig: "{{ local_kubeconfig_path }}"
+  delegate_to: localhost
+
+- name: "Deploy helm charts on master node"
+  kubernetes.core.helm:
+    release_name: "{{ item.release_name }}"
+    chart_ref: "{{ item.chart_ref }}"
+    chart_version: "{{ item.chart_version | default(omit) }}"
+    release_namespace: "{{ item.release_namespace }}"
+    release_state: present
+    kubeconfig: /home/{{ control_node_username }}/.kube/config
+    create_namespace: "{{ item.create_namespace | default(false) }}"
+    release_values: "{{ item.release_values | default(omit) }}"
+    set_values: "{{ item.set_values | default(omit) }}"
+    values_files: "{{ item.values_files | default(omit) }}"
+  loop: "{{ step2_helm_charts_to_install }}"
+
+- name: Creates vlan20-pool on metallb
+  kubernetes.core.k8s:
+    state: present
+    src: "files/metallb/vlan20-pool.yaml"
+    kubeconfig: "{{ local_kubeconfig_path }}"
+  delegate_to: localhost
+
+- name: Install Gateway API CRDs
+  kubernetes.core.k8s:
+    state: present
+    src: "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.3.0/standard-install.yaml"
+    kubeconfig: "{{ local_kubeconfig_path }}"
+  delegate_to: localhost
+
+- name: Deploy Cilium manifests (gateways and base policies)
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ item }}"
+    kubeconfig: "{{ local_kubeconfig_path }}"
+  delegate_to: localhost
+  loop:
+    - "files/cilium/gateway-class.yaml"
+    - "files/cert-manager/network-policies.yaml"
+
+- name: Label namespaces to use egress 50
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Namespace
+    name: "{{ item }}"
+    definition:
+      metadata:
+        labels:
+          use-egress: "50"
+    state: present
+    kubeconfig: "{{ local_kubeconfig_path }}"
+  delegate_to: localhost
+  loop:
+    - cert-manager
+
+- name: Deploy ArgoCD stack
+  block:    
+    - name: Apply ArgoCD certificate
+      kubernetes.core.k8s:
+        state: present
+        src: "files/cert-manager/certificates/argocd.yaml"
+        kubeconfig: "{{ local_kubeconfig_path }}"
+
+    - name: Apply ArgoCD manifests
+      kubernetes.core.k8s:
+        state: present
+        src: "{{ item }}"
+        kubeconfig: "{{ local_kubeconfig_path }}"
+      loop:
+        - "files/argocd/namespace.yaml"
+        - "files/argocd/cm.yaml"
+        - "files/argocd/gateway.yaml"
+        - "files/argocd/http-route.yaml"
+        - "files/argocd/https-route.yaml"
+
+    - name: Install ArgoCD core manifests
+      kubernetes.core.k8s:
+        state: present
+        src: "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"
+        namespace: argocd
+        kubeconfig: "{{ local_kubeconfig_path }}"
+  delegate_to: localhost

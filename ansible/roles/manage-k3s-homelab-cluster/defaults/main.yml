@@ -1,0 +1,158 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for roles/manage-k3s-homelab-cluster
+local_kubeconfig_path: /tmp/kubeconfig/k3s.yml
+helm_repositories:
+  - name: metallb
+    repo_url: https://metallb.github.io/metallb
+  - name: jetstack
+    repo_url: https://charts.jetstack.io
+    install_on_control_node: true
+  - name: bitwarden
+    repo_url: https://charts.bitwarden.com/
+  - name: cert-manager-webhook-ovh-charts
+    repo_url: https://aureq.github.io/cert-manager-webhook-ovh/
+
+ovh_webhook_helm_values:
+  groupName: ovh.solver.hoareau-marion.eu 
+  configVersion: 0.0.2
+  certManager:
+    namespace: cert-manager
+    serviceAccountName: cert-manager
+  issuers:
+    - name: letsencrypt
+      create: true
+      kind: ClusterIssuer
+      acmeServerUrl: https://acme-v02.api.letsencrypt.org/directory
+      email: letsencrypt.capsule006@simplelogin.com
+      ovhEndpointName: ovh-eu
+      ovhAuthenticationMethod: application
+      ovhAuthenticationRef:
+        name: ovh-credentials
+        namespace: cert-manager
+        applicationKeyRef:
+          name: ovh-credentials
+          key: applicationKey
+        applicationSecretRef:
+          name: ovh-credentials
+          key: applicationSecret
+        applicationConsumerKeyRef:
+          name: ovh-credentials
+          key: applicationConsumerKey
+
+bitwarden_helm_values:
+  settings:
+    # How often the secrets synchronize in seconds.  Minimum value is 180.
+    bwSecretsManagerRefreshInterval: 300
+    # Define Cloud-region to supply the server-URL if using a Bitwarden Cloud vault.  Set to either 'US' or 'EU'
+    # If self-hosted, leave blank and set bwApiUrlOverride instead
+    # https://bitwarden.com/help/server-geographies/
+    cloudRegion: EU
+    # Set only if self-hosted.  These are the URLs for the Bitwarden API and Identity services
+    bwApiUrlOverride:
+    bwIdentityUrlOverride:
+    # This is the internal Kubernetes DNS zone.  You will likely not need to change this
+    # unless you have specifically changed the internal DNS name.
+    kubernetesClusterDomain: cluster.local
+    # The number of operator pod replicas to run.  When in doubt, leave at 1
+    replicas: 1
+
+    # Optional: Custom labels to be applied to all resources created by the operator
+    # This can be used to identify the Bitwarden Secrets Manager project or for any other labeling needs
+    # Example:
+    #   commonLabels:
+    #     custom-label: custom-label-value
+    commonLabels: {}
+
+    # Settings specific to the pod containers
+    containers:
+      manager:
+        image:
+          # NOTE:  This should be updated before the final PR
+          repository: ghcr.io/bitwarden/sm-operator
+          # Will default to the Chart's AppVersion, but you can override here.
+          tag:
+        # The pod resource requirements.  You can adjust these up and down for your environment
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        terminationGracePeriodSeconds: 10
+
+      # Provide annotations for the service account
+      serviceAccount:
+        annotations: {}
+      # Set to false to work on older Kubernetes versions (< 1.19) or on vendors versions
+      # which do NOT support this field by default (i.e. OpenShift < 4.11 ).
+      # This setting is recommended for most common cases that do not require escalating privileges
+      # to make containers restrictive.
+      # More info: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
+      enableSeccompProfileRuntimeDefault: true
+      # Optional value if you have privatized the image and need to pull with credentials
+      imagePullSecrets:
+      # Optionally place deployment on specifc nodes
+      nodeSelector: {}
+      # Optionally add taint tolerations
+      tolerations: []
+
+    # Service endpoint configuration for the metrics service.
+    metricsService:
+      ports:
+        - name: https
+          port: 8443
+          protocol: TCP
+          targetPort: https
+      type: ClusterIP
+
+    livenessProbe:
+      initialDelaySeconds: 15
+      periodSeconds: 20
+      timeoutSeconds: 1
+      successThreshold: 1
+      failureThreshold: 3
+
+    readinessProbe:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 1
+      successThreshold: 1
+      failureThreshold: 3
+
+step1_helm_charts_to_install:
+  - name: metallb
+    release_name: metallb
+    chart_ref: metallb/metallb
+    release_namespace: metallb-system
+    create_namespace: true
+  - name: jetstack
+    release_name: cert-manager
+    chart_ref: jetstack/cert-manager
+    release_namespace: cert-manager
+    chart_version: v1.18.2
+    create_namespace: true
+    release_values:
+      installCRDs: true
+  - name: sealed-secrets
+    release_name: sealed-secrets-controller
+    chart_ref: sealed-secrets/sealed-secrets
+    release_namespace: kube-system
+    set_values:
+      - value: fullnameOverride=sealed-secrets-controller
+        value_type: string
+  - name: bitwarden
+    release_name: sm-operator
+    chart_ref: bitwarden/sm-operator
+    release_namespace: sm-operator-system
+    create_namespace: true
+    release_values: "{{ bitwarden_helm_values }}"
+
+step2_helm_charts_to_install:
+  - name: cert-manager-webhook-ovh-charts
+    repo_url: https://aureq.github.io/cert-manager-webhook-ovh/
+    release_name: cm-webhook-ovh
+    chart_ref: cert-manager-webhook-ovh-charts/cert-manager-webhook-ovh
+    release_namespace: cert-manager
+    release_values: "{{ ovh_webhook_helm_values }}"

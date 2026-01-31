@@ -31,3 +31,11 @@ variable "login_names" {
   description = "The Login entries to retrieve"
   type        = map(string)
 }
+
+variable "master_node_temporary_interface" {
+  type    = list(bool)
+}
+
+variable "worker_node_temporary_interface" {
+  type    = list(bool)
+}

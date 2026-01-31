@@ -1,0 +1,163 @@
+---
+- name: Create K3S Master
+  block:
+  - name: Download and install k3s server
+    ansible.builtin.shell: |
+      curl -sfL {{ k3s_url }} | INSTALL_K3S_EXEC='--disable-network-policy --flannel-backend=none' sh -
+    args:
+      creates: /usr/local/bin/kubectl
+
+  - name: "Ensure .kube directory exists"
+    ansible.builtin.file:
+      path: "/home/{{ item }}/.kube"
+      state: directory
+      owner: "{{ item }}"
+      group: "{{ item }}"
+      mode: 0700  
+    loop:
+      - "{{ node_username }}"
+      - "{{ control_node_username }}"
+
+  - name: "Copy kubeconfig to local user"
+    ansible.builtin.copy:
+      src: /etc/rancher/k3s/k3s.yaml
+      dest: /home/{{ item }}/.kube/config
+      remote_src: true
+      owner: "{{ item }}"
+      group: "{{ item }}"
+      mode: '0600'
+    loop:
+      - "{{ node_username }}"
+      - "{{ control_node_username }}"
+
+  - name: Fetch kubeconfig to control node
+    ansible.builtin.fetch:
+      src: /home/{{ control_node_username }}/.kube/config
+      dest: "{{ local_kubeconfig_path }}"
+      flat: true
+
+  - name: Set KUBECONFIG for users
+    lineinfile:
+      path: "/home/{{ item }}/.bashrc"
+      line: 'export KUBECONFIG=~/.kube/config'
+      owner: "{{ item }}"
+      group: "{{ item }}"
+      create: yes
+    loop:
+      - "{{ node_username }}"
+      - "{{ control_node_username }}"
+
+  - name: Replace kubeconfig server URL with host IP
+    ansible.builtin.replace:
+      path: "{{ local_kubeconfig_path }}"
+      regexp: '127\.0\.0\.1'
+      replace: '{{ hostvars[inventory_hostname]["ansible_facts"]["default_ipv4"]["address"] }}'
+    delegate_to: localhost
+
+  - name: Ensure git is installed
+    ansible.builtin.apt:
+      pkg:
+      - git
+      state: present
+      update_cache: true
+
+  - name: Install Helm via script
+    ansible.builtin.shell: |
+      curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    args:
+      creates: /usr/local/bin/helm
+  become: true
+
+- name: Check if Cilium CLI exists
+  ansible.builtin.stat:
+    path: /usr/local/bin/cilium
+  register: cilium_stat
+
+- name: Download Cilium CLI tarball
+  ansible.builtin.get_url:
+    url: "https://github.com/cilium/cilium-cli/releases/download/{{ cilium_version }}/cilium-linux-{{ cli_arch }}.tar.gz"
+    dest: "/tmp/cilium-linux-{{ cli_arch }}.tar.gz"
+    mode: '0644'
+  when: not cilium_stat.stat.exists
+
+- name: Install Cilium CLI binary
+  ansible.builtin.unarchive:
+    src: "/tmp/cilium-linux-{{ cli_arch }}.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    creates: /usr/local/bin/cilium
+    mode: '0755'
+  become: true
+
+- name: Cleanup Cilium CLI temp file
+  ansible.builtin.file:
+    path: /tmp/cilium-linux-amd64.tar.gz
+    state: absent
+
+# - name: (MANUAL) Install Cilium through CLI
+#   shell : |
+#     cilium install --version 1.18.6 --set k8sServiceHost={{ ansible_host }} --set k8sServicePort=6443 --set kubeProxyReplacement=true
+
+# - name: (MANUAL) Wait for Cilium being ready
+#   shell : |
+#     cilium status --wait
+
+# - name: (MANUAL) Install Hubble through CLI
+#   shell : |
+#     cilium hubble enable
+
+- name: Add Cilium repository in Helm
+  kubernetes.core.helm_repository:
+    name: cilium
+    repo_url: https://helm.cilium.io/
+    state: present
+    
+- name: Enable Egress Gateway and Hubble
+  kubernetes.core.helm:
+    release_name: cilium
+    chart_ref: cilium/cilium
+    chart_version: "1.18.6"
+    release_namespace: kube-system
+    release_state: present
+    kubeconfig: /home/{{ control_node_username }}/.kube/config
+    release_values:
+      mtu: 1400
+      enablePMTU: true
+      operator:
+        replicas: 1
+      hubble:
+        relay:
+          enabled: true
+        ui:
+          enabled: true
+      egressGateway:
+        enabled: true
+      ingressController:
+        enabled: true
+        default: true
+      bpf:
+        masquerade: true
+      kubeProxyReplacement: true
+      gatewayAPI:
+        enabled: true
+        replicas: 1
+
+- name: Download Hubble client tarball
+  ansible.builtin.get_url:
+    url: "https://github.com/cilium/hubble/releases/download/{{ hubble_version }}/hubble-linux-{{ cli_arch }}.tar.gz"
+    dest: "/tmp/hubble-linux-{{ cli_arch }}.tar.gz"
+    mode: '0644'
+
+- name: Install Hubble binary
+  ansible.builtin.unarchive:
+    src: "/tmp/hubble-linux-{{ cli_arch }}.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    creates: /usr/local/bin/hubble
+    mode: '0755'
+  become: true
+
+- name: Cleanup Hubble temp file
+  ansible.builtin.file:
+    path: /tmp/hubble-linux-{{ cli_arch }}.tar.gz
+    state: absent
