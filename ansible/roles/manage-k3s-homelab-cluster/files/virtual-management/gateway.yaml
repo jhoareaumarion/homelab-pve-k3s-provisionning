@@ -1,0 +1,36 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: virtual-management-gateway
+  namespace: virtual-management
+spec:
+  gatewayClassName: cilium
+  listeners:
+  - allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: In
+            values: ["argocd"]
+    hostname: argocd.hoareau-marion.eu
+    name: http
+    port: 80
+    protocol: HTTP
+  - allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: In
+            values: ["argocd"]
+    hostname: argocd.hoareau-marion.eu
+    name: https
+    port: 443
+    protocol: HTTPS
+    tls:
+      certificateRefs:
+      - name: argocd-hoareau-marion-eu-tls
+      mode: Terminate

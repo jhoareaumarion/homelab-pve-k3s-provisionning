@@ -5,8 +5,9 @@ metadata:
   namespace: argocd
 spec:
   parentRefs:
-  - name: argocd-gateway
-    sectionName: https 
+  - name: virtual-management-gateway
+    namespace: virtual-management
+    sectionName: https
   hostnames:
   - argocd.hoareau-marion.eu
   rules:
@@ -16,7 +17,7 @@ spec:
         value: /
     backendRefs:
     - name: argocd-server
-      port: 80  
+      port: 80
   - matches:
     - path:
         type: PathPrefix

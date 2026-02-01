@@ -94,6 +94,18 @@
   delegate_to: localhost
   loop:
     - cert-manager
+- name: Deploy virtual-management namespace
+  block: 
+    - name: Apply virtual-management manifests
+      kubernetes.core.k8s:
+        state: present
+        src: "{{ item }}"
+        kubeconfig: "{{ local_kubeconfig_path }}"
+      loop:
+        - "files/virtual-management/namespace.yaml"
+        - "files/virtual-management/certificates/argocd.yaml"
+        - "files/virtual-management/certificates/hubble.yaml"
+        - "files/virtual-management/gateway.yaml"
 
 - name: Deploy ArgoCD stack
   block:    
@@ -111,7 +123,6 @@
       loop:
         - "files/argocd/namespace.yaml"
         - "files/argocd/cm.yaml"
-        - "files/argocd/gateway.yaml"
         - "files/argocd/http-route.yaml"
         - "files/argocd/https-route.yaml"
 

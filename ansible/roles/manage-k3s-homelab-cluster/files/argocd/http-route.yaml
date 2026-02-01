@@ -5,8 +5,9 @@ metadata:
   namespace: argocd
 spec:
   parentRefs:
-  - name: argocd-gateway
-    sectionName: http  # Targets HTTP listener (port 80)
+  - name: virtual-management-gateway
+    namespace: virtual-management
+    sectionName: http
   hostnames:
   - argocd.hoareau-marion.eu
   rules:
