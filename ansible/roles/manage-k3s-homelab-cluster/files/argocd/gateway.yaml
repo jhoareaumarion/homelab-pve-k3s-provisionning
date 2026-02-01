@@ -2,7 +2,6 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   annotations:
-    metallb.universe.tf/address-pool: vlan20-pool
   name: argocd-gateway
   namespace: argocd
 spec:

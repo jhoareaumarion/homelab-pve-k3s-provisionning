@@ -63,17 +63,6 @@
     values_files: "{{ item.values_files | default(omit) }}"
   loop: "{{ step2_helm_charts_to_install }}"
 
-- name: Creates pool on metallb
-  kubernetes.core.k8s:
-    state: present
-    src: "{{ item }}"
-    kubeconfig: "{{ local_kubeconfig_path }}"
-  delegate_to: localhost
-  loop:
-    - files/metallb/vlan20-pool.yaml
-    - files/metallb/vlan50-pool.yaml
-    - files/metallb/vlan60-pool.yaml
-
 - name: Install Gateway API CRDs
   kubernetes.core.k8s:
     state: present
