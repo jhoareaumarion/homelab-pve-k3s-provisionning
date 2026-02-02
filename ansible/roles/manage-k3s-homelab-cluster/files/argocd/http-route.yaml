@@ -7,7 +7,7 @@ spec:
   parentRefs:
   - name: virtual-management-gateway
     namespace: virtual-management
-    sectionName: http
+    sectionName: argocd-http
   hostnames:
   - argocd.hoareau-marion.eu
   rules:
