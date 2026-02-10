@@ -141,6 +141,10 @@
       gatewayAPI:
         enabled: true
         replicas: 1
+      l2announcements:
+        enabled: true
+      externalIPs:
+        enabled: true
 
 - name: Download Hubble client tarball
   ansible.builtin.get_url:

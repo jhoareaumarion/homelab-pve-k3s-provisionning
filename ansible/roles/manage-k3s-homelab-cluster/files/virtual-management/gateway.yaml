@@ -1,0 +1,73 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: virtual-management-gateway
+  namespace: virtual-management
+spec:
+  gatewayClassName: cilium
+  listeners:
+    ### 
+    ### ARGOCD
+    ###
+  - allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: In
+            values: ["argocd"]
+    hostname: argocd.hoareau-marion.eu
+    name: argocd-http
+    port: 80
+    protocol: HTTP
+
+  - allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: In
+            values: ["argocd"]
+    hostname: argocd.hoareau-marion.eu
+    name: argocd-https
+    port: 443
+    protocol: HTTPS
+    tls:
+      certificateRefs:
+      - name: argocd-hoareau-marion-eu-tls
+      mode: Terminate
+    ### 
+    ### HUBBLE
+    ###
+  - allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: In
+            values: ["kube-system"]
+
+    hostname: hubble.hoareau-marion.eu
+    name: hubble-http
+    port: 80
+    protocol: HTTP
+
+  - allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: In
+            values: ["kube-system"]
+    hostname: hubble.hoareau-marion.eu
+    name: hubble-https
+    port: 443
+    protocol: HTTPS
+    tls:
+      certificateRefs:
+      - name: hubble-hoareau-marion-eu-tls
+      mode: Terminate
