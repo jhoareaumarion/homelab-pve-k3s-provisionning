@@ -5,8 +5,8 @@
     "context": "."
   },  
   "containerEnv": {
-    "PYTHON_PACKAGES": "pynetbox,proxmoxer,jmespath,pytz,kubernetes",                                             
-    "ANSIBLE_COLLECTIONS": "netbox.netbox"                            
+    "PYTHON_PACKAGES": "requests,pytest,pynetbox,proxmoxer,jmespath,pytz,kubernetes",                                              // comma-separated
+    "ANSIBLE_COLLECTIONS": "",                             // comma-separated
   },
   "customizations": {
     "vscode": {
