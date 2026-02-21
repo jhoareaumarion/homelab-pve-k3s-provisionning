@@ -80,20 +80,6 @@
     - "files/cilium/gateway-class.yaml"
     - "files/cert-manager/network-policies.yaml"
 
-- name: Label namespaces to use egress 50
-  kubernetes.core.k8s:
-    api_version: v1
-    kind: Namespace
-    name: "{{ item }}"
-    definition:
-      metadata:
-        labels:
-          use-egress: "50"
-    state: present
-    kubeconfig: "{{ local_kubeconfig_path }}"
-  delegate_to: localhost
-  loop:
-    - cert-manager
 - name: Deploy virtual-management namespace
   block: 
     - name: Apply virtual-management manifests
@@ -106,15 +92,10 @@
         - "files/virtual-management/certificates/argocd.yaml"
         - "files/virtual-management/certificates/hubble.yaml"
         - "files/virtual-management/gateway.yaml"
+      delegate_to: localhost
 
 - name: Deploy ArgoCD stack
   block:    
-    - name: Apply ArgoCD certificate
-      kubernetes.core.k8s:
-        state: present
-        src: "files/cert-manager/certificates/argocd.yaml"
-        kubeconfig: "{{ local_kubeconfig_path }}"
-
     - name: Apply ArgoCD manifests
       kubernetes.core.k8s:
         state: present
@@ -132,4 +113,34 @@
         src: "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"
         namespace: argocd
         kubeconfig: "{{ local_kubeconfig_path }}"
+
+    - name: Patch ArgoCD deployment to use node affinity
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{ item }}"
+            namespace: argocd
+          spec:
+            template:
+              spec:
+                affinity:
+                  nodeAffinity:
+                    requiredDuringSchedulingIgnoredDuringExecution:
+                      nodeSelectorTerms:
+                      - matchExpressions:
+                        - key: kubernetes.io/hostname
+                          operator: In
+                          values:
+                          - home-desk-r04-mer01-20-mkub-01
+        kubeconfig: "{{ local_kubeconfig_path }}"
+      loop:
+        - argocd-applicationset-controller 
+        - argocd-dex-server
+        - argocd-notifications-controller 
+        - argocd-redis
+        - argocd-repo-server
+        - argocd-server
   delegate_to: localhost

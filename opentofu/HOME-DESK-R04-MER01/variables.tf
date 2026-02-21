@@ -32,10 +32,7 @@ variable "login_names" {
   type        = map(string)
 }
 
-variable "master_node_temporary_interface" {
-  type    = list(bool)
-}
-
-variable "worker_node_temporary_interface" {
-  type    = list(bool)
+variable "bw_session" {
+  description = "The Bitwarden session token retrieved manually"
+  type        = string
 }

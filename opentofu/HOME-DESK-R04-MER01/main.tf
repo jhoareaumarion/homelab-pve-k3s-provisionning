@@ -35,7 +35,8 @@ locals{
   netbox_url = module.secrets_module.logins["netbox"].uri[0].value
   host = jsondecode(data.http.get_host.response_body).results[0]
   k3s_master_nodes_number = local.host.custom_fields.k3s_master_nodes_number
-  k3s_worker_nodes_number = local.host.custom_fields.k3s_worker_nodes_number
+  k3s_50_worker_nodes_number = local.host.custom_fields.k3s_50_worker_nodes_number
+  k3s_60_worker_nodes_number = local.host.custom_fields.k3s_60_worker_nodes_number
   k3s_egress_gateways = local.host.custom_fields.k3s_egress_gateways
 }
 
@@ -81,7 +82,7 @@ resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
   initialization {
     datastore_id = "local-zfs"
     interface = "ide2"
-    network_data_file_id = proxmox_virtual_environment_file.network_data_config.id
+    network_data_file_id = proxmox_virtual_environment_file.network_data_config_20.id
     user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
     meta_data_file_id = proxmox_virtual_environment_file.master_meta_data_cloud_config[count.index].id
   }
@@ -101,15 +102,6 @@ resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
     model  = "virtio"
     bridge = "vmbr0"
     mac_address = "${local.host.config_context.cluster_base_mac_address}:${local.host.config_context.master_mac_address_octet}:${format("%02d", count.index+1)}"
-  }
-
-  dynamic "network_device" {
-      for_each = var.master_node_temporary_interface[count.index]  ? [1] : []
-      content {
-        model   = "virtio"
-        bridge  = "vmbr0"
-        vlan_id = 90
-      }
   }
 
   operating_system {
@@ -134,23 +126,14 @@ resource "proxmox_virtual_environment_vm" "k3s_master_nodes" {
   }
 }
 
-resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
-  count = local.k3s_worker_nodes_number
-  name = "home-desk-r04-mer01-20-wkub-${format("%02d", count.index+1)}"
+resource "proxmox_virtual_environment_vm" "k3s_50_worker_nodes" {
+  count = local.k3s_50_worker_nodes_number
+  name = "home-desk-r04-mer01-50-wkub-${format("%02d", count.index+1)}"
   description = "Managed by OpenTofu"  
-  tags = concat(
-      [
-        "k3s-worker-node",
-        "opentofu",
-        "k3s-worker-node-init"
-      ],
-      count.index >= local.k3s_worker_nodes_number - length(local.k3s_egress_gateways) ?
-      ["k3s-egress-gateway","k3s-egress-gateway-vlan-${local.k3s_egress_gateways[count.index - length(local.k3s_egress_gateways)].vid}"] :
-      []
-  )      
+  tags = ["k3s-worker-node", "k3s-worker-node-50", "opentofu", "k3s-worker-node-init"]     
   
   node_name = "mercury"
-  vm_id = 20200 + count.index+1
+  vm_id = 50200 + count.index+1
 
   cpu {
     cores      = 2
@@ -176,9 +159,9 @@ resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
   initialization {
     datastore_id = "local-zfs"
     interface = "ide2"
-    network_data_file_id = proxmox_virtual_environment_file.network_data_config.id
+    network_data_file_id = proxmox_virtual_environment_file.network_data_config_50.id
     user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
-    meta_data_file_id = proxmox_virtual_environment_file.worker_meta_data_cloud_config[count.index].id
+    meta_data_file_id = proxmox_virtual_environment_file.worker_50_meta_data_cloud_config[count.index].id
   }
   bios        = "ovmf"  
 
@@ -196,7 +179,85 @@ resource "proxmox_virtual_environment_vm" "k3s_worker_nodes" {
   network_device {
     model  = "virtio"
     bridge = "vmbr0"
-    mac_address = "${local.host.config_context.cluster_base_mac_address}:${local.host.config_context.worker_mac_address_octet}:${format("%02d", count.index+1)}"
+    mac_address = "${local.host.config_context.cluster_base_mac_address}:${local.host.config_context.worker_50_mac_address_octet}:${format("%02d", count.index+1)}"
+  }
+
+  operating_system {
+    type = "l26"
+  }
+  on_boot = true
+  scsi_hardware     = "virtio-scsi-single"
+  started = true
+  agent {
+    enabled = true
+    type    = "virtio" 
+  }
+  boot_order = ["virtio0"]
+  stop_on_destroy = true
+
+  lifecycle {
+    ignore_changes = [ 
+      network_device,
+      disk[0].import_from,
+      initialization
+    ]
+  }
+}
+
+resource "proxmox_virtual_environment_vm" "k3s_60_worker_nodes" {
+  count = local.k3s_60_worker_nodes_number
+  name = "home-desk-r04-mer01-60-wkub-${format("%02d", count.index+1)}"
+  description = "Managed by OpenTofu"  
+  tags = ["k3s-worker-node", "k3s-worker-node-60", "opentofu", "k3s-worker-node-init"]     
+  
+  node_name = "mercury"
+  vm_id = 60200 + count.index+1
+
+  cpu {
+    cores      = 2
+    sockets    = 1
+    type       = "x86-64-v2-AES"
+  }
+  
+  memory     {
+    dedicated = 4096
+    floating = 4096
+  }
+
+  disk {
+    datastore_id  = "home-desk-r01-jup01"
+    import_from = proxmox_virtual_environment_download_file.cloud_image.id
+    interface = "scsi0"
+    iothread = true
+    backup = true
+    discard = "on"
+    size     = 32
+  }
+
+  initialization {
+    datastore_id = "local-zfs"
+    interface = "ide2"
+    network_data_file_id = proxmox_virtual_environment_file.network_data_config_60.id
+    user_data_file_id = proxmox_virtual_environment_file.user_data_cloud_config.id
+    meta_data_file_id = proxmox_virtual_environment_file.worker_60_meta_data_cloud_config[count.index].id
+  }
+  bios        = "ovmf"  
+
+
+  vga {
+    type = "virtio"
+  }
+  efi_disk {
+    type = "4m"
+    datastore_id = "local-zfs"
+  }
+
+  keyboard_layout = "fr"
+      
+  network_device {
+    model  = "virtio"
+    bridge = "vmbr0"
+    mac_address = "${local.host.config_context.cluster_base_mac_address}:${local.host.config_context.worker_60_mac_address_octet}:${format("%02d", count.index+1)}"
   }
 
   operating_system {
@@ -249,8 +310,8 @@ resource "proxmox_virtual_environment_file" "master_meta_data_cloud_config" {
   }
 }
 
-resource "proxmox_virtual_environment_file" "worker_meta_data_cloud_config" {
-  count = local.k3s_worker_nodes_number
+resource "proxmox_virtual_environment_file" "worker_50_meta_data_cloud_config" {
+  count = local.k3s_50_worker_nodes_number
   content_type = "snippets"
   datastore_id = "local"
   node_name    = "mercury"
@@ -258,10 +319,25 @@ resource "proxmox_virtual_environment_file" "worker_meta_data_cloud_config" {
   source_raw {
     data = <<-EOF
     #cloud-config
-    local-hostname: home-desk-r04-mer01-20-wkub-${format("%02d", count.index+1)}
+    local-hostname: home-desk-r04-mer01-50-wkub-${format("%02d", count.index+1)}
     EOF
 
-    file_name = "meta-data-cloud-config-worker-${format("%02d", count.index+1)}"
+    file_name = "meta-data-cloud-config-worker-50-${format("%02d", count.index+1)}"
+  }
+}
+resource "proxmox_virtual_environment_file" "worker_60_meta_data_cloud_config" {
+  count = local.k3s_60_worker_nodes_number
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "mercury"
+
+  source_raw {
+    data = <<-EOF
+    #cloud-config
+    local-hostname: home-desk-r04-mer01-60-wkub-${format("%02d", count.index+1)}
+    EOF
+
+    file_name = "meta-data-cloud-config-worker-60-${format("%02d", count.index+1)}"
   }
 }
 
@@ -315,7 +391,7 @@ resource "proxmox_virtual_environment_file" "user_data_cloud_config" {
   }
 }
 
-resource "proxmox_virtual_environment_file" "network_data_config" {
+resource "proxmox_virtual_environment_file" "network_data_config_20" {
   content_type = "snippets"
   datastore_id = "local"
   node_name    = "mercury"
@@ -340,33 +416,84 @@ network:
       mtu: 1400
       dhcp4-overrides:
         route-metric: 100
+EOF
+    file_name = "network-config-20"
+  }
+}
+
+resource "proxmox_virtual_environment_file" "network_data_config_50" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "mercury"
+
+  source_raw {
+    data = <<-EOF
+#cloud-config
+network:
+  version: 2
+  ethernets:
+    ens18:
+      match:
+        name: ens18
+      dhcp4: no
+      mtu: 1400
+      link-local: []
+  vlans:
     ens18.50:
       id: 50
       link: ens18
+      dhcp4: yes
       mtu: 1400
+      dhcp4-overrides:
+        route-metric: 100
+EOF
+    file_name = "network-config-50"
+  }
+}
+
+resource "proxmox_virtual_environment_file" "network_data_config_60" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "mercury"
+
+  source_raw {
+    data = <<-EOF
+#cloud-config
+network:
+  version: 2
+  ethernets:
+    ens18:
+      match:
+        name: ens18
       dhcp4: no
+      mtu: 1400
+      link-local: []
+  vlans:
     ens18.60:
       id: 60
       link: ens18
+      dhcp4: yes
       mtu: 1400
-      dhcp4: no
-  renderer: networkd
+      dhcp4-overrides:
+        route-metric: 100
 EOF
-    file_name = "network-config"
+    file_name = "network-config-60"
   }
 }
 
 resource "null_resource" "initialize-k3s-into-homelab_playbook" {  
   provisioner "local-exec" {
-    command = <<-EOF
-    ansible-playbook ../../ansible/initialize-k3s-into-homelab.yml \
-    EOF
+    command = "ansible-playbook ../../ansible/initialize-k3s-into-homelab.yml"
     environment = {
       ANSIBLE_FORCE_COLOR = "true"
       ANSIBLE_TIMEOUT     = "120"
       ANSIBLE_CONFIG      = "../../ansible/ansible.cfg"
-      BW_SESSION          = "redacted"
+      BW_SESSION          = var.bw_session
     }
   }
-  depends_on = [proxmox_virtual_environment_vm.k3s_worker_nodes,proxmox_virtual_environment_vm.k3s_master_nodes]
+  depends_on = [
+    proxmox_virtual_environment_vm.k3s_50_worker_nodes,
+    proxmox_virtual_environment_vm.k3s_60_worker_nodes,
+    proxmox_virtual_environment_vm.k3s_master_nodes
+    ]
 }

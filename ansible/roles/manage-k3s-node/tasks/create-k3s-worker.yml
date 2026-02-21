@@ -29,4 +29,33 @@
       destination_port: 4244
       jump: ACCEPT
       comment: "Cilium Hubble gRPC"
+
+  - name: "Labelling {{ inventory_hostname }} for VLAN 50"
+    kubernetes.core.k8s:
+      state: present
+      name: "{{ inventory_hostname }}"
+      definition:
+        apiVersion: v1
+        kind: Node
+        metadata:
+          labels:
+            affected_vlan: "50"
+      kubeconfig: "{{ local_kubeconfig_path }}"
+    delegate_to: localhost
+    when: "'k3s-worker-node-50' in proxmox_tags.split(';')"
+
+  - name: "Labelling {{ inventory_hostname }} for VLAN 60"
+    kubernetes.core.k8s:
+      state: present
+      name: "{{ inventory_hostname }}"
+      definition:
+        apiVersion: v1
+        kind: Node
+        metadata:
+          labels:
+            affected_vlan: "60"
+      kubeconfig: "{{ local_kubeconfig_path }}"
+    delegate_to: localhost
+    when: "'k3s-worker-node-60' in proxmox_tags.split(';')"
+
   become: true

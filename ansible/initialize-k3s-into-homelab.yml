@@ -26,44 +26,45 @@
         control_node_key: "{{ bitwarden_secrets.control_node_key }}"
         control_node_username: "{{ bitwarden_secrets.control_node_username }}"
         node_username: "{{ bitwarden_secrets.node_username }}"
+      run_once: true
       no_log: true
 
 - name: Deploy-k3s
   hosts: k3s_master_node_init,k3s_worker_node_init
   gather_facts: false
   tasks:
-    - name: Updating Netbox
-      delegate_to: localhost
-      block:
-        - name: Create VM
-          ansible.builtin.include_role:
-            name: manage-netbox
-            tasks_from: create-vm 
+    # - name: Updating Netbox
+    #   delegate_to: localhost
+    #   block:
+    #     - name: Create VM
+    #       ansible.builtin.include_role:
+    #         name: manage-netbox
+    #         tasks_from: create-vm 
 
-        - name: Create disks
-          ansible.builtin.include_role:
-            name: manage-netbox
-            tasks_from: create-disks
+    #     - name: Create disks
+    #       ansible.builtin.include_role:
+    #         name: manage-netbox
+    #         tasks_from: create-disks
 
-        - name: Create interfaces
-          ansible.builtin.include_role:
-            name: manage-netbox
-            tasks_from: create-interfaces
-          loop:
-            - name: ens18
-              mac: "{{ proxmox_net0.virtio }}"
-            - name: ens18.20
-              vlan: "Virtual Management"
-              prefix: 10.10.20.0/24
-            - name: ens18.50
-              vlan: "Service"
-              prefix: 10.10.50.0/24
-            - name: ens18.60
-              vlan: "Internet of Things"
-              prefix: 10.10.60.0/24
+    #     - name: Create interfaces
+    #       ansible.builtin.include_role:
+    #         name: manage-netbox
+    #         tasks_from: create-interfaces
+    #       loop:
+    #         - name: ens18
+    #           mac: "{{ proxmox_net0.virtio }}"
+    #         - name: ens18.20
+    #           vlan: "Virtual Management"
+    #           prefix: 10.10.20.0/24
+    #         - name: ens18.50
+    #           vlan: "Service"
+    #           prefix: 10.10.50.0/24
+    #         - name: ens18.60
+    #           vlan: "Internet of Things"
+    #           prefix: 10.10.60.0/24
 
-        - name: Refresh dynamic inventory
-          meta: refresh_inventory
+    #     - name: Refresh dynamic inventory
+    #       meta: refresh_inventory
 
     - name: Gettings credentials for VMs Node connection
       block:
@@ -86,7 +87,7 @@
       ansible.builtin.set_fact:
         ansible_user: "{{ control_node_username }}"
         ansible_ssh_private_key_file: "{{ ssh_key_path }}"
-
+        ansible_host: "{{ proxmox_agent_interfaces | selectattr('name', 'match', '^ens18\\.') | map(attribute='ip-addresses') | first | first | regex_replace('/.*', '') }}"
     - name: Gather all facts
       ansible.builtin.setup:
 
@@ -132,27 +133,22 @@
         tasks_from: create-k3s-worker
       when: "'k3s-worker-node-init' in proxmox_tags.split(';')"
 
-    - name: Create K3S Egress gateways
-      ansible.builtin.include_role:
-        name: manage-k3s-node
-        tasks_from: create-k3s-egress-gateway
-      when: "'k3s-egress-gateway' in proxmox_tags.split(';')"
-
     - name: Bootstrap cluster 
       ansible.builtin.include_role:
         name: manage-k3s-homelab-cluster
         tasks_from: bootstrap-cluster
       when: "'k3s-master-node-init' in proxmox_tags.split(';')"
-    # - name: Remove tag from VM
-    #   community.proxmox.proxmox_kvm:
-    #     api_user: "{{ node_token_user }}"
-    #     api_token_id: "{{ node_token_id }}"
-    #     api_token_secret: "{{ node_token_secret }}"
-    #     api_host: "{{ node_uri }}:{{ node_port }}"
-    #     name: "{{ inventory_hostname }}"
-    #     node: mercury
-    #     vmid: "{{ vm_config.vmid }}"
-    #     tags: "k3s-worker-node,opentofu"  
-    #   register: vm_update
-    #   when: "'k3s-worker-node' in proxmox_tags.split(';')"
-    #   delegate_to: localhost
+
+    - name: Remove tag from VM
+      community.proxmox.proxmox_kvm:
+        api_user: "{{ node_token_user }}"
+        api_token_id: "{{ node_token_id }}"
+        api_token_secret: "{{ node_token_secret }}"
+        api_host: "{{ node_uri }}:{{ node_port }}"
+        name: "{{ inventory_hostname }}"
+        node: mercury
+        vmid: "{{ vm_config.vmid }}"
+        tags: "k3s-worker-node,opentofu"  
+      register: vm_update
+      when: "'k3s-worker-node' in proxmox_tags.split(';')"
+      delegate_to: localhost
