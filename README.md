@@ -7,7 +7,7 @@ This repository contains my current implementation of OpenTofu/Ansible to provis
 Render my devcontainer template using the command below from my WSL instance that includes [Dev Container CLI](https://github.com/devcontainers/cli)r: 
 ```bash
 devcontainer templates apply --workspace-folder ../homelab-pve-k3s-provisionning --template-id ghcr.io/jhoareaumarion/devcontainers/ansible-kubernetes-tofu:latest --template-args '{ "additionnalAnsibleCollect
-ions":"netbox.netbox", "additionalPythonPackages":"pynetbox" }'
+ions":"netbox.netbox", "additionalPythonPackages":"requests,pytest,pynetbox,proxmoxer,jmespath,pytz,kubernetes" }'
 ```
 
 ### Requirements
@@ -24,4 +24,5 @@ ions":"netbox.netbox", "additionalPythonPackages":"pynetbox" }'
 - Connect to bitwarden using `bw` CLI
     - bw config server **BITWARDEN_SERVER**
     - bw login --raw (to get session id) OR bw unlock
+
     - export BW_SESSION="{{ the session id from above }}"
