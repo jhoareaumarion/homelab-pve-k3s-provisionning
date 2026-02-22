@@ -1,6 +1,14 @@
 ---
 - name: Create K3S Worker
   block:
+  
+  - name: Ensure nfs-common are installed
+    ansible.builtin.apt:
+      pkg:
+      - nfs-common
+      state: present
+      update_cache: true
+
   - name: Get K3S token from master
     ansible.builtin.slurp:
       src: /var/lib/rancher/k3s/server/node-token
@@ -40,6 +48,7 @@
         metadata:
           labels:
             affected_vlan: "50"
+            node-role.kubernetes.io/worker: ""
       kubeconfig: "{{ local_kubeconfig_path }}"
     delegate_to: localhost
     when: "'k3s-worker-node-50' in proxmox_tags.split(';')"
@@ -54,6 +63,7 @@
         metadata:
           labels:
             affected_vlan: "60"
+            node-role.kubernetes.io/worker: ""
       kubeconfig: "{{ local_kubeconfig_path }}"
     delegate_to: localhost
     when: "'k3s-worker-node-60' in proxmox_tags.split(';')"

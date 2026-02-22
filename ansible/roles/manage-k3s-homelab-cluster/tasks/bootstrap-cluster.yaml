@@ -49,6 +49,20 @@
     kubeconfig: "{{ local_kubeconfig_path }}"
   delegate_to: localhost
 
+- name: "Labelling {{ inventory_hostname }} for virtual management gateway"
+  kubernetes.core.k8s:
+    state: present
+    name: "{{ inventory_hostname }}"
+    definition:
+      apiVersion: v1
+      kind: Node
+      metadata:
+        labels:
+          virtual-gateway-node: "true"
+    kubeconfig: "{{ local_kubeconfig_path }}"
+  delegate_to: localhost
+  when: "'k3s-master-node' in proxmox_tags.split(';')"
+
 - name: "Deploy helm charts on master node"
   kubernetes.core.helm:
     release_name: "{{ item.release_name }}"
@@ -78,6 +92,8 @@
   delegate_to: localhost
   loop:
     - "files/cilium/gateway-class.yaml"
+    - "files/cilium/vlan20-pool.yaml"
+    - "files/cilium/vlan20-announcement.yaml"
     - "files/cert-manager/network-policies.yaml"
 
 - name: Deploy virtual-management namespace
@@ -93,6 +109,17 @@
         - "files/virtual-management/certificates/hubble.yaml"
         - "files/virtual-management/gateway.yaml"
       delegate_to: localhost
+
+- name: Deploy Hubble manifests (routes and services)
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ item }}"
+    kubeconfig: "{{ local_kubeconfig_path }}"
+  delegate_to: localhost
+  loop:
+    - "files/hubble/http-route.yaml"
+    - "files/hubble/https-route.yaml"
+    - "files/hubble/service.yaml"
 
 - name: Deploy ArgoCD stack
   block:    

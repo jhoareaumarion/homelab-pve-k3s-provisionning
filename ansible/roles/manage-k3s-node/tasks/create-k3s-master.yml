@@ -54,10 +54,11 @@
       replace: '{{ hostvars[inventory_hostname]["ansible_facts"]["default_ipv4"]["address"] }}'
     delegate_to: localhost
 
-  - name: Ensure git is installed
+  - name: Ensure git and nfs-common are installed
     ansible.builtin.apt:
       pkg:
       - git
+      - nfs-common
       state: present
       update_cache: true
 

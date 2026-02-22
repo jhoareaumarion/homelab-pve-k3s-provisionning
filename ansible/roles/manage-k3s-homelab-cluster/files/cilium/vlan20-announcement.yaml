@@ -1,0 +1,15 @@
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: vlan20-gateway-announcement
+  namespace: kube-system
+spec:
+  interfaces: ["ens18.20"]
+  loadBalancerIPs: true
+  serviceSelector:
+    matchLabels:
+      io.kubernetes.service.name: cilium-gateway-virtual-management-gateway
+      io.kubernetes.service.namespace: virtual-management
+  nodeSelector:
+    matchLabels:z
+      kubernetes.io/hostname: home-desk-r04-mer01-20-mkub-01
